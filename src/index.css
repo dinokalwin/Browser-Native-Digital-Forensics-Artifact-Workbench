@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * DFIR Workbench theme tokens.
+ * Blue-accent, SOC-style palette. `:root` holds the light variant,
+ * `.dark` overrides it — ThemeProvider toggles the `dark` class on
+ * <html>. shadcn/ui components read these CSS variables automatically.
+ */
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 91% 45%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 40%;
+
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 87%;
+    --input: 214 32% 87%;
+    --ring: 217 91% 45%;
+
+    --severity-critical: 0 72% 45%;
+    --severity-warning: 32 92% 42%;
+    --severity-normal: 142 71% 32%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 5%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 40% 8%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 40% 8%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 5%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 63% 51%;
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+
+    --severity-critical: 0 72% 51%;
+    --severity-warning: 38 92% 50%;
+    --severity-normal: 142 71% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  /* Subtle SOC-style background grid for hero/marketing surfaces. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .bg-radial-fade {
+    background: radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      hsl(var(--primary) / 0.18),
+      transparent
+    );
+  }
+}

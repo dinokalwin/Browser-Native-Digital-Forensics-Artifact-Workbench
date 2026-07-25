@@ -1,0 +1,13 @@
+diff --git a/node_modules/@ts-evtx/core/dist/src/logging/logger.js b/node_modules/@ts-evtx/core/dist/src/logging/logger.js
+index f5d4f0d..300901b 100644
+--- a/node_modules/@ts-evtx/core/dist/src/logging/logger.js
++++ b/node_modules/@ts-evtx/core/dist/src/logging/logger.js
+@@ -3,7 +3,7 @@
+  * due to string interpolation. Set to true to enable detailed debug logs.
+  * Default: false for production performance.
+  */
+-export const ENABLE_DEBUG_LOGGING = process.env.EVTX_DEBUG === 'true' || false;
++export const ENABLE_DEBUG_LOGGING = false;
+ class NoopLogger {
+     trace() { }
+     debug() { }
