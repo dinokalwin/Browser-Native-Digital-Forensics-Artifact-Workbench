@@ -81,7 +81,20 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    // `[&>*]:min-w-0` — every direct child (PageHeader, plus whatever
+    // `children(events)` renders: the dashboard's grids, the evidence
+    // table, or the timeline) is a flex item of this flex-col container,
+    // and flex items default to `min-width: auto`, meaning they refuse to
+    // shrink below their own content's intrinsic width. EvidenceTable's
+    // underlying <table> has real min-width per column (see columns.tsx),
+    // so without this, that intrinsic width propagates up through every
+    // flex boundary between here and the viewport, growing the whole page
+    // wider than the screen instead of staying inside EvidenceTable's own
+    // `overflow-x-auto` wrapper (src/components/ui/table.tsx) where it
+    // belongs. This one utility is what lets that existing local-scroll
+    // mechanism actually take effect, on all three pages that share this
+    // component (Dashboard, Evidence Viewer, Timeline).
+    <div className="flex min-w-0 flex-col gap-6 [&>*]:min-w-0">
       <PageHeader
         title={title}
         description={uploadedFile.name}

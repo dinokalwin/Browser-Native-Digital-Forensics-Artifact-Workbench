@@ -116,7 +116,16 @@ export function EvidenceTable({ data, isLoading = false }: EvidenceTableProps) {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    // Same `min-w-0` reasoning as CaseStateGate.tsx: this is itself a
+    // flex-col container, so the `rounded-lg border` div below (wrapping
+    // <Table>, which has real per-column min-width — see columns.tsx) is
+    // a flex item that would otherwise refuse to shrink below the
+    // table's intrinsic width, pushing this whole component wider than
+    // whatever bounded width its parent gives it. `min-w-0` here plus
+    // `[&>*]:min-w-0` on children is what lets Table's own
+    // `overflow-x-auto` wrapper (src/components/ui/table.tsx) actually
+    // scroll locally instead of the page growing to fit it.
+    <div className="flex min-w-0 flex-col gap-4 [&>*]:min-w-0">
       <EvidenceTableToolbar
         data={data}
         visibleEvents={visibleEvents}

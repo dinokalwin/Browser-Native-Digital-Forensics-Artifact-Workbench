@@ -24,9 +24,9 @@ export default function AppShell() {
       <Sidebar />
       <MobileSidebar />
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <Navbar />
-        <main id="main-content" className="flex-1 p-4 lg:p-6">
+        <main id="main-content" className="min-w-0 flex-1 p-4 lg:p-6">
           <Suspense fallback={<PageLoadingFallback />}>
             <Outlet />
           </Suspense>
