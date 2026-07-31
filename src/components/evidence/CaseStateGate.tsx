@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FileWarning, Loader2, UploadCloud } from "lucide-react";
+import { FileWarning, Inbox, Loader2, UploadCloud } from "lucide-react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
 import type { EvtxEvent } from "@/types/evidence";
@@ -58,6 +58,30 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
           title="Couldn't parse this file"
           description={error ?? "The file could not be processed. Try a different EVTX file."}
           action={{ label: "Try another file", to: "/" }}
+        />
+      </div>
+    );
+  }
+
+  // `status === "ready"` with zero events is a *successful* parse of a
+  // genuinely empty log — many real Windows EVTX channels (HardwareEvents,
+  // vendor diagnostic channels, Internet Explorer on a system that never
+  // used it) are commonly empty by default, and Event Viewer opens them
+  // fine showing zero events. That's distinct from still-in-flight parsing,
+  // and must not be shown as a perpetual "Parsing in progress" spinner —
+  // see parser.ts's matching fix to stop treating this case as an error.
+  if (status === "ready" && events.length === 0) {
+    return (
+      <div>
+        <PageHeader
+          title={title}
+          description={uploadedFile.name}
+          actions={<CaseStatusBadge status={status} />}
+        />
+        <EmptyState
+          icon={Inbox}
+          title="This log is empty"
+          description="The file was parsed successfully, but it contains no events."
         />
       </div>
     );

@@ -180,7 +180,19 @@ export async function parseEVTXBuffer(
     options.onProgress?.({ chunksProcessed, totalChunks, eventsParsedSoFar: events.length });
   }
 
-  if (events.length === 0 && totalChunks > 0) {
+  // `recordsAttempted === 0` while `chunksValid > 0` means every chunk's own
+  // header-recorded record range was genuinely empty — not that records
+  // existed and failed. Many real, valid Windows EVTX channels (HardwareEvents,
+  // vendor diagnostic channels, Internet Explorer on a system that never used
+  // it, etc.) are commonly empty by default; Event Viewer opens these
+  // successfully and simply shows zero events. Treating that case as a parse
+  // failure was the actual defect being fixed here — it did not reflect any
+  // problem in chunk verification, record verification, or BinXML/template
+  // decoding (all of which ran, and passed, with nothing to attempt). This
+  // does not weaken any integrity check: a file where chunks fail checksum
+  // verification, or one where records exist but fail verification/rendering,
+  // still hits the branches below exactly as before.
+  if (events.length === 0 && totalChunks > 0 && (chunksValid === 0 || recordsAttempted > 0)) {
     throw new Error(
       `No events could be extracted from this file. Diagnostics: ${chunksProcessed} chunk(s) walked, ${chunksValid} passed checksum verification, ${recordsAttempted} record(s) attempted, ${recordsVerifiedOk} passed record verification, ${recordsMappedOk} produced a usable event. ` +
         (chunksValid === 0
