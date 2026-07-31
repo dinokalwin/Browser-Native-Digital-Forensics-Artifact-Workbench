@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { calculateStatistics } from "@/lib/statistics";
@@ -9,6 +9,7 @@ import {
   getUniqueProviders,
   type InvestigationFilters,
 } from "@/lib/eventFilters";
+import type { EvtxEvent } from "@/types/evidence";
 import { CaseStateGate } from "@/components/evidence/CaseStateGate";
 import { StatisticsCards } from "@/components/dashboard/StatisticsCards";
 import { FilterToolbar } from "@/components/dashboard/FilterToolbar";
@@ -17,6 +18,7 @@ import { RiskScoreCard } from "@/components/dashboard/RiskScoreCard";
 import { SuspiciousEventsPanel } from "@/components/dashboard/SuspiciousEventsPanel";
 import { InvestigationSummaryPanel } from "@/components/dashboard/InvestigationSummaryPanel";
 import { EvidenceTable } from "@/components/evidence/EvidenceTable";
+import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
 
 /**
  * Case overview (Phase 7). Backed by real parsed events plus the
@@ -50,6 +52,25 @@ export default function DashboardPage() {
   const providers = useMemo(() => getUniqueProviders(allEvents), [allEvents]);
   const computers = useMemo(() => getUniqueComputers(allEvents), [allEvents]);
   const filteredEvents = useMemo(() => filterEvents(allEvents, filters), [allEvents, filters]);
+
+  // Event Details Inspector — local React state per this feature's design
+  // (deliberately not Zustand). Kept as two separate pieces of state
+  // rather than deriving `open` from `selectedEvent !== null`: closing the
+  // drawer only flips `open` to false and leaves `selectedEvent` alone, so
+  // the close animation keeps showing the event that was just being
+  // viewed instead of the content vanishing mid-animation.
+  const [selectedEvent, setSelectedEvent] = useState<EvtxEvent | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Stable references, so EvidenceTable (React.memo-wrapped) doesn't
+  // re-render just because DashboardPage re-rendered for an unrelated
+  // reason — only an actual prop change (new data/isLoading/onRowClick)
+  // should cause that.
+  const handleRowClick = useCallback((event: EvtxEvent) => {
+    setSelectedEvent(event);
+    setIsDrawerOpen(true);
+  }, []);
+  const handleDrawerClose = useCallback(() => setIsDrawerOpen(false), []);
 
   return (
     <CaseStateGate
@@ -106,8 +127,14 @@ export default function DashboardPage() {
               events
             </p>
 
-            <EvidenceTable data={filteredEvents} />
+            <EvidenceTable data={filteredEvents} onRowClick={handleRowClick} />
           </div>
+
+          <EventDetailsDrawer
+            selectedEvent={selectedEvent}
+            open={isDrawerOpen}
+            onClose={handleDrawerClose}
+          />
         </>
       )}
     </CaseStateGate>

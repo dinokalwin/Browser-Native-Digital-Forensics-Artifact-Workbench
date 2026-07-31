@@ -30,6 +30,16 @@ import { EvidenceTableSkeleton } from "@/components/evidence/EvidenceTableSkelet
 interface EvidenceTableProps {
   data: EvtxEvent[];
   isLoading?: boolean;
+  /**
+   * Called on row click (outside the checkbox), in addition to the
+   * existing `uiStore.selectEvent` call below — this is what
+   * DashboardPage's Event Details Inspector (EventDetailsDrawer.tsx) uses
+   * to open on a row click, keeping that drawer's `selectedEvent` as
+   * local React state per that feature's design, without touching or
+   * replacing the pre-existing `uiStore.selectedEvent` cross-panel link
+   * (still what drives this table's own row-highlight styling below).
+   */
+  onRowClick?: (event: EvtxEvent) => void;
 }
 
 /**
@@ -44,9 +54,15 @@ interface EvidenceTableProps {
  *    to a single table render and shouldn't outlive it.
  *  - clicking a row (outside the checkbox) sets `uiStore.selectedEvent`,
  *    the cross-panel link that a future detail view / timeline
- *    highlight will read from.
+ *    highlight will read from, and (if provided) calls `onRowClick`.
+ *
+ * Wrapped in `React.memo` (see the bottom of this file) so that state
+ * changes elsewhere on the dashboard — most notably the Event Details
+ * Inspector opening/closing — don't re-render this table: with 50,000+
+ * rows behind TanStack Table, that render is real work worth skipping
+ * when none of this component's own props actually changed.
  */
-export function EvidenceTable({ data, isLoading = false }: EvidenceTableProps) {
+function EvidenceTableImpl({ data, isLoading = false, onRowClick }: EvidenceTableProps) {
   const searchQuery = useFilterStore((s) => s.searchQuery);
   const activeFilters = useFilterStore((s) => s.activeFilters);
   const sorting = useFilterStore((s) => s.sorting);
@@ -181,7 +197,10 @@ export function EvidenceTable({ data, isLoading = false }: EvidenceTableProps) {
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() ? "selected" : undefined}
-                  onClick={() => selectEvent(row.original)}
+                  onClick={() => {
+                    selectEvent(row.original);
+                    onRowClick?.(row.original);
+                  }}
                   className={cn(
                     "cursor-pointer",
                     selectedEvent?.id === row.original.id && "bg-primary/5",
@@ -203,3 +222,5 @@ export function EvidenceTable({ data, isLoading = false }: EvidenceTableProps) {
     </div>
   );
 }
+
+export const EvidenceTable = React.memo(EvidenceTableImpl);
