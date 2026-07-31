@@ -19,8 +19,7 @@ import type { EvtxEvent, SuspiciousFinding } from "@/types/evidence";
 
 export const parseEVTX = (file: File) => backendParseEVTX(file);
 
-export const detectSuspicious = (events: EvtxEvent[]) =>
-  backendDetectSuspicious(events);
+export const detectSuspicious = (events: EvtxEvent[]) => backendDetectSuspicious(events);
 
 export const generateInvestigationSummary = (
   events: EvtxEvent[],

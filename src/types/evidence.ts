@@ -4,12 +4,7 @@
  * on top of it in src/backend/*.
  */
 
-export type EventLevel =
-  | "Critical"
-  | "Error"
-  | "Warning"
-  | "Information"
-  | "Verbose";
+export type EventLevel = "Critical" | "Error" | "Warning" | "Information" | "Verbose";
 
 export interface EvtxEvent {
   id: string;

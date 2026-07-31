@@ -37,7 +37,8 @@ function neutralizeFormulaInjection(value: string): string {
 }
 
 function escapeCsvField(value: unknown): string {
-  const str = value === null || value === undefined ? "" : neutralizeFormulaInjection(String(value));
+  const str =
+    value === null || value === undefined ? "" : neutralizeFormulaInjection(String(value));
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -46,9 +47,7 @@ function escapeCsvField(value: unknown): string {
 
 export function eventsToCSV(events: EvtxEvent[]): string {
   const header = COLUMNS.map((c) => escapeCsvField(c.header)).join(",");
-  const rows = events.map((event) =>
-    COLUMNS.map((c) => escapeCsvField(event[c.key])).join(","),
-  );
+  const rows = events.map((event) => COLUMNS.map((c) => escapeCsvField(event[c.key])).join(","));
   return [header, ...rows].join("\r\n");
 }
 

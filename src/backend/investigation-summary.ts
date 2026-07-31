@@ -20,9 +20,10 @@ export async function generateSummary(
   suspiciousFindings: SuspiciousFinding[],
 ): Promise<InvestigationSummary> {
   const affectedHosts = Array.from(new Set(events.map((e) => e.computer))).sort();
-  const timeRange = events.length > 0
-    ? formatRange(events)
-    : { start: new Date().toISOString(), end: new Date().toISOString() };
+  const timeRange =
+    events.length > 0
+      ? formatRange(events)
+      : { start: new Date().toISOString(), end: new Date().toISOString() };
 
   const riskScore = computeRiskScore(suspiciousFindings);
   const criticalCount = suspiciousFindings.filter((f) => f.severity === "critical").length;

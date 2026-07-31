@@ -43,7 +43,9 @@ function ensureWorker(): Worker {
   });
 
   w.addEventListener("error", (event) => {
-    const error = new Error(`EVTX parser worker crashed: ${event.message || "unknown worker error"}`);
+    const error = new Error(
+      `EVTX parser worker crashed: ${event.message || "unknown worker error"}`,
+    );
     for (const [id, entry] of pending) {
       clearTimeout(entry.timeoutHandle);
       entry.reject(error);
@@ -60,7 +62,11 @@ function ensureWorker(): Worker {
 export function parseInWorker(
   buffer: ArrayBuffer,
   options: {
-    onProgress?: (p: { chunksProcessed: number; totalChunks: number; eventsParsedSoFar: number }) => void;
+    onProgress?: (p: {
+      chunksProcessed: number;
+      totalChunks: number;
+      eventsParsedSoFar: number;
+    }) => void;
     signal?: AbortSignal;
     timeoutMs?: number;
   } = {},

@@ -37,9 +37,8 @@ export function LandingHero() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mt-4 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg"
         >
-          Parse, triage, and investigate Windows Event Log (EVTX) artifacts
-          entirely in your browser. No installs, no uploads — your evidence
-          never leaves the machine.
+          Parse, triage, and investigate Windows Event Log (EVTX) artifacts entirely in your
+          browser. No installs, no uploads — your evidence never leaves the machine.
         </motion.p>
 
         <motion.div

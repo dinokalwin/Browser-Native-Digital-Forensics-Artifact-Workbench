@@ -89,7 +89,8 @@ export function EvidenceTableToolbar({
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
-                Provider{activeFilters.provider ? ": " + activeFilters.provider.split("-").pop() : ""}
+                Provider
+                {activeFilters.provider ? ": " + activeFilters.provider.split("-").pop() : ""}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
@@ -117,10 +118,10 @@ export function EvidenceTableToolbar({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{totalCount} event{totalCount === 1 ? "" : "s"}</span>
-          {selectedCount > 0 && (
-            <Badge variant="secondary">{selectedCount} selected</Badge>
-          )}
+          <span>
+            {totalCount} event{totalCount === 1 ? "" : "s"}
+          </span>
+          {selectedCount > 0 && <Badge variant="secondary">{selectedCount} selected</Badge>}
         </div>
         <ExportControls events={visibleEvents} />
       </div>

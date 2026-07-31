@@ -111,8 +111,7 @@ export function DropZone() {
             {isBusy ? "Parsing EVTX file…" : "Upload EVTX File"}
           </p>
           <p className="text-sm text-muted-foreground">
-            Drag and drop a Windows Event Log (.evtx) file here, or click to
-            browse.
+            Drag and drop a Windows Event Log (.evtx) file here, or click to browse.
           </p>
         </div>
 

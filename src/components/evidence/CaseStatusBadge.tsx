@@ -5,7 +5,11 @@ import type { LoadStatus } from "@/types/evidence";
 
 const STATUS_CONFIG: Record<
   LoadStatus,
-  { label: string; icon: typeof Loader2; variant: "outline" | "warning" | "success" | "destructive" }
+  {
+    label: string;
+    icon: typeof Loader2;
+    variant: "outline" | "warning" | "success" | "destructive";
+  }
 > = {
   idle: { label: "No case loaded", icon: CircleDashed, variant: "outline" },
   parsing: { label: "Parsing events", icon: Loader2, variant: "warning" },
@@ -20,10 +24,7 @@ export function CaseStatusBadge({ status }: { status: LoadStatus }) {
 
   return (
     <Badge variant={config.variant} className="gap-1.5">
-      <config.icon
-        className={isSpinning ? "h-3 w-3 animate-spin" : "h-3 w-3"}
-        aria-hidden="true"
-      />
+      <config.icon className={isSpinning ? "h-3 w-3 animate-spin" : "h-3 w-3"} aria-hidden="true" />
       {config.label}
     </Badge>
   );

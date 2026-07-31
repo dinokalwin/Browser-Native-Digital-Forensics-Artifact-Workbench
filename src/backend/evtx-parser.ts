@@ -23,25 +23,15 @@
 import type { EvtxEvent } from "@/types/evidence";
 import { parseInWorker, disposeParserWorker } from "./engine/worker-client";
 
-const MIN_FILE_SIZE = 4096; // EVTX file header size
+// Note: file-size validation (MIN_FILE_SIZE) lives in engine/parser.ts,
+// which every parse path — this file's parseEVTX() included — routes
+// through via the worker. A duplicate pre-worker check used to live here
+// too (Phase 1 removed it, along with the unused parseEVTXBuffer() export
+// it belonged to — nothing in src imported it; the worker imports its own
+// parseEVTXBuffer from ./engine/parser, not this file). See
+// docs/CHANGELOG.md and docs/ARCHITECTURE_DECISIONS.md.
 
-/** Parses a raw EVTX file buffer into structured events, off the main thread. */
-export async function parseEVTXBuffer(buffer: Uint8Array): Promise<EvtxEvent[]> {
-  if (buffer.byteLength < MIN_FILE_SIZE) {
-    throw new Error("This file is too small to be a valid EVTX file.");
-  }
-  // Explicit copy into a real ArrayBuffer: `Uint8Array.buffer` is typed as
-  // `ArrayBuffer | SharedArrayBuffer` (it could theoretically be a view
-  // into either), but Worker.postMessage's transfer list requires a
-  // concrete ArrayBuffer. This also guarantees we hand over a buffer
-  // whose length exactly matches the Uint8Array view, defensively, in
-  // case `buffer` is ever a view into a larger backing buffer.
-  const arrayBuffer = new ArrayBuffer(buffer.byteLength);
-  new Uint8Array(arrayBuffer).set(buffer);
-  return parseInWorker(arrayBuffer);
-}
-
-/** Reads a browser File and parses it as EVTX. See parseEVTXBuffer for details. */
+/** Reads a browser File and parses it as EVTX. See src/backend/engine/ for the parsing core. */
 export async function parseEVTX(file: File): Promise<EvtxEvent[]> {
   const arrayBuffer = await file.arrayBuffer();
   return parseInWorker(arrayBuffer);

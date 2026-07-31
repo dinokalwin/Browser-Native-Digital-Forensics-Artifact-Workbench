@@ -32,9 +32,7 @@ export function StatCard({
           <p className="mt-1.5 text-3xl font-semibold tracking-tight tabular-nums text-foreground">
             {value.toLocaleString()}
           </p>
-          {description && (
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          )}
+          {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
         </div>
         <span
           className={cn(

@@ -21,7 +21,13 @@ interface WorkerCancelRequest {
 type WorkerRequest = WorkerParseRequest | WorkerCancelRequest;
 
 type WorkerResponse =
-  | { type: "PROGRESS"; id: string; chunksProcessed: number; totalChunks: number; eventsParsedSoFar: number }
+  | {
+      type: "PROGRESS";
+      id: string;
+      chunksProcessed: number;
+      totalChunks: number;
+      eventsParsedSoFar: number;
+    }
   | { type: "RESULT"; id: string; events: EvtxEvent[] }
   | { type: "ERROR"; id: string; message: string };
 
@@ -47,7 +53,13 @@ async function handleParse(id: string, buffer: ArrayBuffer): Promise<void> {
     const events = await parseEVTXBuffer(new Uint8Array(buffer), {
       signal: controller.signal,
       onProgress: (p) =>
-        post({ type: "PROGRESS", id, chunksProcessed: p.chunksProcessed, totalChunks: p.totalChunks, eventsParsedSoFar: p.eventsParsedSoFar }),
+        post({
+          type: "PROGRESS",
+          id,
+          chunksProcessed: p.chunksProcessed,
+          totalChunks: p.totalChunks,
+          eventsParsedSoFar: p.eventsParsedSoFar,
+        }),
     });
     post({ type: "RESULT", id, events });
   } catch (err) {

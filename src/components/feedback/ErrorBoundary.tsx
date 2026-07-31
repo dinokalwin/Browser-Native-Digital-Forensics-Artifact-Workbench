@@ -22,13 +22,13 @@ interface ErrorBoundaryState {
  * throughout the parsing pipeline's error states.
  */
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null };
+  override state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  override componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("Unhandled UI error:", error, info.componentStack);
   }
 
@@ -37,7 +37,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     window.location.assign("/");
   };
 
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
 
     return (

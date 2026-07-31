@@ -13,9 +13,7 @@ interface ThemeProviderState {
   setTheme: (theme: Theme) => void;
 }
 
-const ThemeProviderContext = React.createContext<ThemeProviderState | undefined>(
-  undefined,
-);
+const ThemeProviderContext = React.createContext<ThemeProviderState | undefined>(undefined);
 
 /**
  * Applies the "dark" class to <html> based on the user's stored
@@ -39,8 +37,7 @@ export function ThemeProvider({
     root.classList.remove("light", "dark");
 
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light";
       root.classList.add(systemTheme);
@@ -60,11 +57,7 @@ export function ThemeProvider({
 
   const value = React.useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 
-  return (
-    <ThemeProviderContext.Provider value={value}>
-      {children}
-    </ThemeProviderContext.Provider>
-  );
+  return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>;
 }
 
 export function useTheme() {

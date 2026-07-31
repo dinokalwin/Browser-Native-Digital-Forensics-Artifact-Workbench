@@ -1,12 +1,7 @@
 import { useUIStore } from "@/store/uiStore";
 import { Brand } from "@/components/layout/Brand";
 import { SidebarNav } from "@/components/layout/SidebarNav";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 /**
  * Sheet-based nav drawer for < lg viewports, triggered from Navbar's

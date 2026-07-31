@@ -37,10 +37,8 @@ export const useUIStore = create<UIState>()(
           false,
           "ui/toggleSidebarCollapsed",
         ),
-      setMobileNavOpen: (mobileNavOpen) =>
-        set({ mobileNavOpen }, false, "ui/setMobileNavOpen"),
-      selectEvent: (selectedEvent) =>
-        set({ selectedEvent }, false, "ui/selectEvent"),
+      setMobileNavOpen: (mobileNavOpen) => set({ mobileNavOpen }, false, "ui/setMobileNavOpen"),
+      selectEvent: (selectedEvent) => set({ selectedEvent }, false, "ui/selectEvent"),
     }),
     { name: "ui-store" },
   ),

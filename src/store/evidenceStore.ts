@@ -55,11 +55,7 @@ export const useEvidenceStore = create<EvidenceState>()(
           uploadedAt: new Date().toISOString(),
         };
 
-        set(
-          { uploadedFile, status: "parsing", error: null },
-          false,
-          "evidence/loadFile:start",
-        );
+        set({ uploadedFile, status: "parsing", error: null }, false, "evidence/loadFile:start");
 
         // Dynamically imported rather than statically at the top of this
         // file: @ts-evtx/core (the parser's dependency) is one of the
@@ -67,9 +63,8 @@ export const useEvidenceStore = create<EvidenceState>()(
         // page's initial load doesn't pay for it until someone actually
         // drops a file — Vite/Rollup code-splits this into its own chunk
         // automatically. Pure bundling change, no behavior difference.
-        const { parseEVTX, detectSuspicious, generateInvestigationSummary } = await import(
-          "@/services/evtxApi"
-        );
+        const { parseEVTX, detectSuspicious, generateInvestigationSummary } =
+          await import("@/services/evtxApi");
 
         let events: EvtxEvent[];
         try {
@@ -81,10 +76,7 @@ export const useEvidenceStore = create<EvidenceState>()(
           set(
             {
               status: "error",
-              error:
-                err instanceof Error
-                  ? err.message
-                  : "Failed to parse the uploaded file.",
+              error: err instanceof Error ? err.message : "Failed to parse the uploaded file.",
             },
             false,
             "evidence/loadFile:parseError",
@@ -92,11 +84,7 @@ export const useEvidenceStore = create<EvidenceState>()(
           return;
         }
 
-        set(
-          { events, status: "analyzing" },
-          false,
-          "evidence/loadFile:parsed",
-        );
+        set({ events, status: "analyzing" }, false, "evidence/loadFile:parsed");
 
         // Suspicious-event detection and investigation summary generation
         // (src/backend/suspicious-detection.ts, investigation-summary.ts)
@@ -109,10 +97,7 @@ export const useEvidenceStore = create<EvidenceState>()(
         let investigationSummary: InvestigationSummary | null = null;
         try {
           suspiciousFindings = await detectSuspicious(events);
-          investigationSummary = await generateInvestigationSummary(
-            events,
-            suspiciousFindings,
-          );
+          investigationSummary = await generateInvestigationSummary(events, suspiciousFindings);
         } catch {
           // Expected until detection/summary are implemented — no-op.
         }

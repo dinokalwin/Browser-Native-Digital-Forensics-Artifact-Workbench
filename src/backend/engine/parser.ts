@@ -152,11 +152,19 @@ export async function parseEVTXBuffer(
               }
             }
           } catch (err) {
-            // A single malformed record (bad BXML token, unresolved
-            // template, truncated substitution array — InvalidRecordException
-            // — or any other mapping failure) must never abort the parse.
-            void (err instanceof InvalidRecordException); // documents the expected error type; no special handling needed beyond "skip and continue"
-          }
+  console.error("====================================");
+  console.error("[EVTX PARSER ERROR]");
+  console.error(err);
+
+  if (err instanceof Error) {
+    console.error("Message:", err.message);
+    console.error("Stack:", err.stack);
+  }
+
+  console.error("====================================");
+
+  void (err instanceof InvalidRecordException);
+}
 
           recordsSinceYield++;
           if (recordsSinceYield >= yieldEvery) {

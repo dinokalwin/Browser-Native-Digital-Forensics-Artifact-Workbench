@@ -17,10 +17,7 @@ interface FilterState {
   pagination: PaginationState;
 
   setSearchQuery: (query: string) => void;
-  setFilter: <K extends keyof EvidenceFilters>(
-    key: K,
-    value: EvidenceFilters[K],
-  ) => void;
+  setFilter: <K extends keyof EvidenceFilters>(key: K, value: EvidenceFilters[K]) => void;
   clearFilters: () => void;
   setSorting: (sorting: SortingState) => void;
   setPagination: (pagination: PaginationState) => void;
@@ -48,11 +45,7 @@ export const useFilterStore = create<FilterState>()(
       pagination: defaultPagination,
 
       setSearchQuery: (searchQuery) =>
-        set(
-          { searchQuery, pagination: defaultPagination },
-          false,
-          "filter/setSearchQuery",
-        ),
+        set({ searchQuery, pagination: defaultPagination }, false, "filter/setSearchQuery"),
 
       setFilter: (key, value) =>
         set(
@@ -77,8 +70,7 @@ export const useFilterStore = create<FilterState>()(
 
       setSorting: (sorting) => set({ sorting }, false, "filter/setSorting"),
 
-      setPagination: (pagination) =>
-        set({ pagination }, false, "filter/setPagination"),
+      setPagination: (pagination) => set({ pagination }, false, "filter/setPagination"),
     }),
     { name: "filter-store" },
   ),

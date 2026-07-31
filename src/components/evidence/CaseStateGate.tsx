@@ -30,7 +30,11 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
   if (!uploadedFile) {
     return (
       <div>
-        <PageHeader title={title} description="No case file loaded" actions={<CaseStatusBadge status={status} />} />
+        <PageHeader
+          title={title}
+          description="No case file loaded"
+          actions={<CaseStatusBadge status={status} />}
+        />
         <EmptyState
           icon={UploadCloud}
           title="No case loaded"
@@ -44,7 +48,11 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
   if (status === "error") {
     return (
       <div>
-        <PageHeader title={title} description={uploadedFile.name} actions={<CaseStatusBadge status={status} />} />
+        <PageHeader
+          title={title}
+          description={uploadedFile.name}
+          actions={<CaseStatusBadge status={status} />}
+        />
         <EmptyState
           icon={FileWarning}
           title="Couldn't parse this file"
@@ -58,7 +66,11 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
   if (events.length === 0) {
     return (
       <div>
-        <PageHeader title={title} description={uploadedFile.name} actions={<CaseStatusBadge status={status} />} />
+        <PageHeader
+          title={title}
+          description={uploadedFile.name}
+          actions={<CaseStatusBadge status={status} />}
+        />
         <EmptyState
           icon={Loader2}
           title="Parsing in progress"
@@ -70,7 +82,11 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={title} description={uploadedFile.name} actions={<CaseStatusBadge status={status} />} />
+      <PageHeader
+        title={title}
+        description={uploadedFile.name}
+        actions={<CaseStatusBadge status={status} />}
+      />
       {children(events)}
     </div>
   );

@@ -27,7 +27,7 @@ A browser-native Digital Forensics & Incident Response artifact workbench for Wi
 
 ## Getting started
 
-Requires Node.js 18+.
+Requires Node.js 20+ (pinned in `.nvmrc`; no environment variables are needed — see `.env.example`).
 
 ```bash
 npm install
@@ -37,12 +37,20 @@ npm run dev       # start the dev server (http://localhost:5173)
 Other scripts:
 
 ```bash
-npm run build      # type-check + production build to dist/
-npm run typecheck  # type-check only
-npm run preview    # serve the production build locally
+npm run build         # type-check + production build to dist/
+npm run typecheck     # type-check only
+npm run preview       # serve the production build locally
+npm run lint           # ESLint
+npm run lint:fix        # ESLint, auto-fixing what it can
+npm run format          # Prettier, writes formatting fixes
+npm run format:check    # Prettier, check-only (what CI runs)
 ```
 
 To try it out, drop a `.evtx` file onto the landing page. Don't have one handy? See [DEMO.md](./DEMO.md) for where to find one and a suggested walkthrough.
+
+## Documentation
+
+The architectural blueprint for this project is [SDD.md](./SDD.md) (Software Design Document). Process and contributor docs — progress tracking, the per-phase checklist, coding standards, changelog, and architecture decision records — live in [`docs/`](./docs/). Start with [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) if you're new to the project.
 
 ## Project structure
 
