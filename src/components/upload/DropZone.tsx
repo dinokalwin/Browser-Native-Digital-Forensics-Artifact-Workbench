@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { Button } from "@/components/ui/button";
+import { FileInfoCard } from "@/components/upload/FileInfoCard";
 
 /** Anything larger than this still parses normally — it's a heads-up, not a limit. */
 const MAX_FILE_SIZE_WARNING = 500 * 1024 * 1024; // 500 MB
@@ -53,10 +54,18 @@ export function DropZone() {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
+  // Local-only, purely presentational: powers FileInfoCard (name/size/last
+  // modified) without adding anything to evidenceStore. The store's
+  // UploadedFileMeta intentionally doesn't carry the browser File object or
+  // its lastModified timestamp, and that's out of scope here — this state
+  // never feeds the parsing pipeline, which continues to read `file`
+  // directly in handleFiles exactly as before.
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
 
   const loadFile = useEvidenceStore((s) => s.loadFile);
   const status = useEvidenceStore((s) => s.status);
   const backendError = useEvidenceStore((s) => s.error);
+  const eventCount = useEvidenceStore((s) => s.events.length);
   const isBusy = status === "parsing" || status === "analyzing";
 
   const handleFiles = React.useCallback(
@@ -75,6 +84,7 @@ export function DropZone() {
       }
 
       setLocalError(null);
+      setSelectedFile(file);
       await loadFile(file);
 
       // Only navigate on a successful parse — on failure the store's
@@ -184,6 +194,21 @@ export function DropZone() {
           <span>{displayError}</span>
         </div>
       )}
+
+      <AnimatePresence mode="wait">
+        {selectedFile && !localError && (
+          <FileInfoCard
+            // Keyed by identity so a newly-selected file (even one that
+            // reuses the same name) remounts and replays the enter
+            // animation, instead of silently patching the previous card.
+            key={`${selectedFile.name}-${selectedFile.lastModified}-${selectedFile.size}`}
+            file={selectedFile}
+            status={status}
+            eventCount={status === "ready" ? eventCount : null}
+            className="mt-4"
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
