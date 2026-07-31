@@ -8,14 +8,45 @@ import { cn } from "@/lib/utils";
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { Button } from "@/components/ui/button";
 
+/** Anything larger than this still parses normally — it's a heads-up, not a limit. */
+const MAX_FILE_SIZE_WARNING = 500 * 1024 * 1024; // 500 MB
+
+/**
+ * Rejection-level validation only. A non-null return blocks the upload
+ * entirely (the message is shown inline via `localError`). Kept as a pure
+ * function, separate from the component, so the rules are readable and
+ * testable on their own — no DOM, no state, no side effects.
+ *
+ * The large-file check is deliberately NOT part of this function: it's a
+ * warning, not a rejection, so it can't be expressed as "return an error
+ * string" — see `isLargeFile` and its use in `handleFiles` below.
+ */
+function validateFile(file: File): string | null {
+  if (file.size === 0) {
+    return "This file is empty.";
+  }
+
+  if (!file.name.toLowerCase().endsWith(".evtx")) {
+    return "Only Windows Event Log (.evtx) files are supported.";
+  }
+
+  return null;
+}
+
+/** Large files aren't rejected — just flagged, since parsing may take longer. */
+function isLargeFile(file: File): boolean {
+  return file.size > MAX_FILE_SIZE_WARNING;
+}
+
 /**
  * Drag-and-drop / click-to-browse upload surface for the landing page.
  *
- * Validates the file extension, hands the File to `evidenceStore.loadFile`
- * (which runs the real browser-native EVTX parser — see
- * src/backend/evtx-parser.ts — entirely client-side, nothing is uploaded
- * to a server), and navigates to the dashboard only once that pipeline
- * reports success. On failure the user stays here and sees the error.
+ * Validates the file (see `validateFile`), hands it to
+ * `evidenceStore.loadFile` (which runs the real browser-native EVTX
+ * parser — see src/backend/evtx-parser.ts — entirely client-side, nothing
+ * is uploaded to a server), and navigates to the dashboard only once that
+ * pipeline reports success. On failure the user stays here and sees the
+ * error.
  */
 export function DropZone() {
   const navigate = useNavigate();
@@ -33,9 +64,14 @@ export function DropZone() {
       const file = files?.[0];
       if (!file) return;
 
-      if (!file.name.toLowerCase().endsWith(".evtx")) {
-        setLocalError("Unsupported file type. Please upload a .evtx file.");
+      const validationError = validateFile(file);
+      if (validationError) {
+        setLocalError(validationError);
         return;
+      }
+
+      if (isLargeFile(file)) {
+        toast.warning("Large file detected. Parsing may take longer.");
       }
 
       setLocalError(null);
