@@ -29,7 +29,7 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
 
   if (!uploadedFile) {
     return (
-      <div>
+      <div className="flex flex-col gap-6">
         <PageHeader
           title={title}
           description="No case file loaded"
@@ -47,7 +47,7 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
 
   if (status === "error") {
     return (
-      <div>
+      <div className="flex flex-col gap-6">
         <PageHeader
           title={title}
           description={uploadedFile.name}
@@ -72,7 +72,7 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
   // see parser.ts's matching fix to stop treating this case as an error.
   if (status === "ready" && events.length === 0) {
     return (
-      <div>
+      <div className="flex flex-col gap-6">
         <PageHeader
           title={title}
           description={uploadedFile.name}
@@ -89,7 +89,7 @@ export function CaseStateGate({ title, description, children }: CaseStateGatePro
 
   if (events.length === 0) {
     return (
-      <div>
+      <div className="flex flex-col gap-6">
         <PageHeader
           title={title}
           description={uploadedFile.name}
