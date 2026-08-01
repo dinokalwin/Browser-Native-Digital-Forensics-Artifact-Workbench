@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LevelBadge } from "@/components/evidence/level-badge";
 import { EventNoteSection } from "@/components/notes/EventNoteSection";
+import { BookmarkToggleButton } from "@/components/bookmarks/BookmarkToggleButton";
 
 export interface EventDetailsDrawerProps {
   /** Event to display. Only read while `open` — the drawer keeps showing
@@ -199,6 +200,7 @@ function EventDetailsDrawerImpl({
             </ScrollArea>
 
             <div className="flex flex-row items-center justify-end gap-2 border-t border-border px-6 py-4">
+              <BookmarkToggleButton caseId={caseId} eventId={selectedEvent.id} className="mr-auto" />
               <Button
                 variant="outline"
                 size="sm"

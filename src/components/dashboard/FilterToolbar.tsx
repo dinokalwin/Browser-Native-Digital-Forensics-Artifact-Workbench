@@ -10,6 +10,7 @@ import {
 } from "@/lib/eventFilters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * Tailwind classes for the native `<select>` elements below, matching
@@ -67,6 +68,17 @@ export interface FilterToolbarProps {
   providers: string[];
   /** Unique computer/hostnames for the dropdown — see getUniqueComputers in lib/eventFilters.ts. */
   computers: string[];
+  /**
+   * "Bookmarked Only" (Sprint 4.2) — deliberately NOT part of
+   * `InvestigationFilters`/`onFiltersChange`: bookmarks are a separate
+   * concern from `lib/eventFilters.ts` (the filtering engine, out of
+   * scope for that sprint), applied as an additional narrowing step by
+   * the caller on top of whatever `filterEvents` already returned. Both
+   * optional so this toolbar still works exactly as before for any
+   * caller that doesn't pass them.
+   */
+  bookmarkedOnly?: boolean;
+  onBookmarkedOnlyChange?: (value: boolean) => void;
   className?: string;
 }
 
@@ -85,6 +97,8 @@ export function FilterToolbar({
   onFiltersChange,
   providers,
   computers,
+  bookmarkedOnly = false,
+  onBookmarkedOnlyChange,
   className,
 }: FilterToolbarProps) {
   const [searchInput, setSearchInput] = React.useState(filters.search);
@@ -140,9 +154,10 @@ export function FilterToolbar({
     if (debounceHandle.current) clearTimeout(debounceHandle.current);
     setSearchInput("");
     onFiltersChange({ search: "", provider: null, computer: null, eventId: null, level: "All" });
+    onBookmarkedOnlyChange?.(false);
   };
 
-  const active = hasActiveFilters(filters);
+  const active = hasActiveFilters(filters) || bookmarkedOnly;
 
   return (
     // No border/shadow/background of its own — this toolbar lives inside
@@ -259,6 +274,20 @@ export function FilterToolbar({
             ))}
           </select>
         </FilterField>
+
+        {onBookmarkedOnlyChange && (
+          <label
+            htmlFor="filter-bookmarked-only"
+            className="flex h-9 items-center gap-2 text-sm text-foreground"
+          >
+            <Checkbox
+              id="filter-bookmarked-only"
+              checked={bookmarkedOnly}
+              onCheckedChange={(value) => onBookmarkedOnlyChange(value === true)}
+            />
+            Bookmarked Only
+          </label>
+        )}
 
         <Button
           variant="ghost"

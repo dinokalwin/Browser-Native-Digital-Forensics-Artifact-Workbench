@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { calculateStatistics } from "@/lib/statistics";
@@ -22,6 +22,8 @@ import { EvidenceTable } from "@/components/evidence/EvidenceTable";
 import { ExportControls } from "@/components/evidence/ExportControls";
 import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
 import { CaseNotesPanel } from "@/components/notes/CaseNotesPanel";
+import { BookmarkedEventsCard } from "@/components/dashboard/BookmarkedEventsCard";
+import { useBookmarkMap } from "@/store/bookmarksStore";
 
 /**
  * Case overview (Phase 7). Backed by real parsed events plus the
@@ -61,6 +63,28 @@ export default function DashboardPage() {
   const providers = useMemo(() => getUniqueProviders(allEvents), [allEvents]);
   const computers = useMemo(() => getUniqueComputers(allEvents), [allEvents]);
   const filteredEvents = useMemo(() => filterEvents(allEvents, filters), [allEvents, filters]);
+
+  // Event Bookmarks (Sprint 4.2) — "Bookmarked Only" is a second, separate
+  // narrowing step layered on top of `filteredEvents`, deliberately kept
+  // out of `InvestigationFilters`/`filterEvents` (lib/eventFilters.ts is
+  // the filtering engine, out of scope for this sprint). Only the "All
+  // Events" table/summary/export below reflects it — the Risk/Summary
+  // grid above still reflects `filteredEvents` alone, unchanged.
+  const bookmarkMap = useBookmarkMap(caseId);
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const visibleEvents = useMemo(
+    () => (bookmarkedOnly ? filteredEvents.filter((e) => bookmarkMap[e.id]) : filteredEvents),
+    [filteredEvents, bookmarkedOnly, bookmarkMap],
+  );
+
+  // Ref for the "All Events" Card so BookmarkedEventsCard's click can
+  // scroll it into view after enabling the bookmark filter — see
+  // handleViewBookmarked below.
+  const allEventsCardRef = useRef<HTMLDivElement>(null);
+  const handleViewBookmarked = useCallback(() => {
+    setBookmarkedOnly(true);
+    allEventsCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   // Event Details Inspector — local React state per this feature's design
   // (deliberately not Zustand). Kept as two separate pieces of state
@@ -118,7 +142,10 @@ export default function DashboardPage() {
             {investigationSummary && <InvestigationSummaryPanel summary={investigationSummary} />}
           </div>
 
-          <CaseNotesPanel caseId={caseId} />
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <CaseNotesPanel caseId={caseId} className="sm:col-span-2" />
+            <BookmarkedEventsCard caseId={caseId} onView={handleViewBookmarked} />
+          </div>
 
           {/*
             Sprint 3.4.1: the whole "All Events" workspace — heading,
@@ -128,7 +155,7 @@ export default function DashboardPage() {
             standardized on gap-6 (Card content) / gap-4 (toolbar-to-table
             spacing), matching the rest of the dashboard.
           */}
-          <Card>
+          <Card ref={allEventsCardRef}>
             <CardContent className="flex flex-col gap-6 p-6">
               <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
                 All Events
@@ -139,6 +166,8 @@ export default function DashboardPage() {
                 onFiltersChange={setFilters}
                 providers={providers}
                 computers={computers}
+                bookmarkedOnly={bookmarkedOnly}
+                onBookmarkedOnlyChange={setBookmarkedOnly}
               />
 
               {/*
@@ -146,17 +175,20 @@ export default function DashboardPage() {
                 (ticket's "Action Toolbar" moved next to the results count,
                 actions right-aligned) — matches this sprint's desired
                 layout mock exactly: "Showing X of Y Events" regardless of
-                whether a filter has actually narrowed the set.
+                whether a filter has actually narrowed the set. Reflects
+                `visibleEvents` (post-bookmark-filter), not just
+                `filteredEvents`, so the count/export always match what the
+                table below is actually showing.
               */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Showing {filteredEvents.length.toLocaleString()} of{" "}
+                  Showing {visibleEvents.length.toLocaleString()} of{" "}
                   {allEvents.length.toLocaleString()} Events
                 </p>
-                <ExportControls events={filteredEvents} />
+                <ExportControls events={visibleEvents} />
               </div>
 
-              <EvidenceTable data={filteredEvents} onRowClick={handleRowClick} showToolbar={false} />
+              <EvidenceTable data={visibleEvents} onRowClick={handleRowClick} showToolbar={false} />
             </CardContent>
           </Card>
 

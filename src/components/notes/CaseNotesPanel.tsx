@@ -2,6 +2,7 @@ import * as React from "react";
 import { NotebookPen, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { useCaseNote, useNotesStore, useEnsureCaseNotesLoaded } from "@/store/no
 export interface CaseNotesPanelProps {
   /** Uploaded file name — the key notes are namespaced under (see lib/notes.ts). */
   caseId: string | null;
+  className?: string;
 }
 
 const AUTO_SAVE_DEBOUNCE_MS = 500;
@@ -21,7 +23,7 @@ const AUTO_SAVE_DEBOUNCE_MS = 500;
  * types — deliberately no explicit Save button here, per this sprint's
  * spec, unlike EventNoteSection's explicit Save/Edit/Delete actions.
  */
-export function CaseNotesPanel({ caseId }: CaseNotesPanelProps) {
+export function CaseNotesPanel({ caseId, className }: CaseNotesPanelProps) {
   useEnsureCaseNotesLoaded(caseId);
 
   const storedNote = useCaseNote(caseId);
@@ -76,8 +78,8 @@ export function CaseNotesPanel({ caseId }: CaseNotesPanelProps) {
   const disabled = !caseId;
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-6">
+    <Card className={cn("h-full", className)}>
+      <CardContent className="flex h-full flex-col gap-3 p-6">
         <div className="flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wide text-muted-foreground">
             <NotebookPen className="h-4 w-4" aria-hidden="true" />

@@ -19,6 +19,15 @@ interface StatCardProps {
   description?: string;
   /** Tailwind classes for the icon badge background/text, e.g. severity colors. */
   accentClassName?: string;
+  /**
+   * Optional — when provided, the whole card becomes a real `<button>`
+   * (free keyboard focus/activation/focus-ring, no hand-rolled ARIA)
+   * instead of a static `<div>`, with a hover affordance. Existing
+   * callers that don't pass this keep the exact same non-interactive
+   * card they always had.
+   */
+  onClick?: () => void;
+  className?: string;
 }
 
 /**
@@ -48,32 +57,60 @@ export function StatCard({
   icon: Icon,
   description,
   accentClassName = "bg-primary/10 text-primary",
+  onClick,
+  className,
 }: StatCardProps) {
   return (
-    <Card className="h-full">
+    <Card className={cn("h-full", onClick && "transition-colors hover:bg-accent/40", className)}>
       <CardContent className="flex h-full flex-col gap-1.5 p-6">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <span
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
-              accentClassName,
-            )}
+        {onClick ? (
+          <button
+            type="button"
+            onClick={onClick}
+            className="flex h-full w-full flex-col gap-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <Icon className="h-5 w-5" aria-hidden="true" />
-          </span>
-        </div>
-
-        <div className="flex-1 pt-1.5 text-3xl font-semibold leading-tight tracking-tight tabular-nums text-foreground">
-          {typeof value === "number" ? value.toLocaleString() : value}
-        </div>
-
-        {description && (
-          <p className="text-xs text-muted-foreground" title={description}>
-            {description}
-          </p>
+            <StatCardBody label={label} value={value} Icon={Icon} description={description} accentClassName={accentClassName} />
+          </button>
+        ) : (
+          <StatCardBody label={label} value={value} Icon={Icon} description={description} accentClassName={accentClassName} />
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface StatCardBodyProps {
+  label: string;
+  value: ReactNode;
+  Icon: LucideIcon;
+  description?: string;
+  accentClassName: string;
+}
+
+function StatCardBody({ label, value, Icon, description, accentClassName }: StatCardBodyProps) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+            accentClassName,
+          )}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </span>
+      </div>
+
+      <div className="flex-1 pt-1.5 text-3xl font-semibold leading-tight tracking-tight tabular-nums text-foreground">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </div>
+
+      {description && (
+        <p className="text-xs text-muted-foreground" title={description}>
+          {description}
+        </p>
+      )}
+    </>
   );
 }

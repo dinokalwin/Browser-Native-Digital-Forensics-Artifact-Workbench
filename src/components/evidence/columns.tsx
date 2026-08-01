@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SortableHeader } from "@/components/evidence/SortableHeader";
 import { LevelBadge } from "@/components/evidence/level-badge";
 import { NoteIndicator } from "@/components/evidence/NoteIndicator";
+import { BookmarkIndicator } from "@/components/evidence/BookmarkIndicator";
 
 /**
  * Column definitions for the Evidence Table. `meta.className` values are
@@ -37,6 +38,17 @@ export const columns: ColumnDef<EvtxEvent>[] = [
     enableSorting: false,
     enableHiding: false,
     meta: { className: "w-10" },
+  },
+  {
+    // Event Bookmarks (Sprint 4.2) — same "display-only id column" shape
+    // as the notes column below; toggling happens in the Event Details
+    // Drawer, not here.
+    id: "bookmark",
+    header: "",
+    cell: ({ row }) => <BookmarkIndicator eventId={row.original.id} />,
+    enableSorting: false,
+    enableHiding: false,
+    meta: { className: "w-8" },
   },
   {
     // Investigator Notes (Sprint 4.1) — a small icon, not a data field, so
