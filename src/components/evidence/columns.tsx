@@ -5,6 +5,7 @@ import type { EvtxEvent } from "@/types/evidence";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SortableHeader } from "@/components/evidence/SortableHeader";
 import { LevelBadge } from "@/components/evidence/level-badge";
+import { NoteIndicator } from "@/components/evidence/NoteIndicator";
 
 /**
  * Column definitions for the Evidence Table. `meta.className` values are
@@ -36,6 +37,17 @@ export const columns: ColumnDef<EvtxEvent>[] = [
     enableSorting: false,
     enableHiding: false,
     meta: { className: "w-10" },
+  },
+  {
+    // Investigator Notes (Sprint 4.1) — a small icon, not a data field, so
+    // this is an `id` column (no `accessorKey`) purely for display; sort/
+    // filter/export behavior for every other column is untouched.
+    id: "notes",
+    header: "",
+    cell: ({ row }) => <NoteIndicator eventId={row.original.id} />,
+    enableSorting: false,
+    enableHiding: false,
+    meta: { className: "w-8" },
   },
   {
     accessorKey: "timestamp",

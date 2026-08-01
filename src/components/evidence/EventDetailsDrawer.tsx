@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LevelBadge } from "@/components/evidence/level-badge";
+import { EventNoteSection } from "@/components/notes/EventNoteSection";
 
 export interface EventDetailsDrawerProps {
   /** Event to display. Only read while `open` — the drawer keeps showing
@@ -25,6 +26,13 @@ export interface EventDetailsDrawerProps {
   selectedEvent: EvtxEvent | null;
   open: boolean;
   onClose: () => void;
+  /**
+   * Uploaded file name — the key investigator notes are namespaced under
+   * (see lib/notes.ts). Passed down rather than read from evidenceStore
+   * directly, keeping this component presentation-only per its existing
+   * design (see the doc comment below).
+   */
+  caseId: string | null;
 }
 
 /** A parsed record's `raw` payload is `{ xml: string }` — see record-mapper.ts.
@@ -69,16 +77,25 @@ function DetailRow({ label, value }: DetailRowProps) {
 
 /**
  * Full-detail inspector for a single event, opened from a row click in
- * EvidenceTable. Presentation only: reads `selectedEvent` and renders it —
- * no parsing, no filtering, no store access. `React.memo`-wrapped so it
- * only re-renders when its own props (selectedEvent/open) actually change,
- * not whenever an unrelated part of the dashboard re-renders.
+ * EvidenceTable. Presentation only: reads `selectedEvent`/`caseId` and
+ * renders them — no parsing, no filtering, no store access of its own
+ * (its child `EventNoteSection` reads/writes `notesStore` for the
+ * Investigator Notes feature, but that's an isolated concern scoped to
+ * that one child, not this component reaching into a store directly).
+ * `React.memo`-wrapped so it only re-renders when its own props
+ * (selectedEvent/open/caseId) actually change, not whenever an unrelated
+ * part of the dashboard re-renders.
  *
  * Escape/close-button/click-outside are all handled by Sheet's underlying
  * Radix Dialog primitive via `onOpenChange` below — nothing extra needed
  * here for any of the three.
  */
-function EventDetailsDrawerImpl({ selectedEvent, open, onClose }: EventDetailsDrawerProps) {
+function EventDetailsDrawerImpl({
+  selectedEvent,
+  open,
+  onClose,
+  caseId,
+}: EventDetailsDrawerProps) {
   const [xmlExpanded, setXmlExpanded] = React.useState(false);
 
   // Collapsed by default every time a *different* event is opened, rather
@@ -149,6 +166,10 @@ function EventDetailsDrawerImpl({ selectedEvent, open, onClose }: EventDetailsDr
                     {hasMessage ? selectedEvent.message : "No message available for this event."}
                   </p>
                 </div>
+
+                <Separator />
+
+                <EventNoteSection caseId={caseId} eventId={selectedEvent.id} />
 
                 <Separator />
 

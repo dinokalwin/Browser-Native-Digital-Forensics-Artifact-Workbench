@@ -21,6 +21,7 @@ import { InvestigationSummaryPanel } from "@/components/dashboard/InvestigationS
 import { EvidenceTable } from "@/components/evidence/EvidenceTable";
 import { ExportControls } from "@/components/evidence/ExportControls";
 import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
+import { CaseNotesPanel } from "@/components/notes/CaseNotesPanel";
 
 /**
  * Case overview (Phase 7). Backed by real parsed events plus the
@@ -40,6 +41,12 @@ export default function DashboardPage() {
   // to CaseStateGate's render instead, which the rules of hooks disallow.
   const allEvents = useEvidenceStore((s) => s.events);
   const statistics = useMemo(() => calculateStatistics(allEvents), [allEvents]);
+
+  // Investigator Notes (Sprint 4.1) are namespaced per case by the
+  // uploaded file's name — see lib/notes.ts. Read here (rather than inside
+  // CaseNotesPanel/EventDetailsDrawer directly) so both stay presentation
+  // components that just receive `caseId` as a prop.
+  const caseId = useEvidenceStore((s) => s.uploadedFile?.name ?? null);
 
   // Dashboard-wide investigation filters (search/provider/computer/eventId/
   // level — see lib/eventFilters.ts). Deliberately separate, component-local
@@ -111,6 +118,8 @@ export default function DashboardPage() {
             {investigationSummary && <InvestigationSummaryPanel summary={investigationSummary} />}
           </div>
 
+          <CaseNotesPanel caseId={caseId} />
+
           {/*
             Sprint 3.4.1: the whole "All Events" workspace — heading,
             filters, results summary, export actions, and the table itself
@@ -155,6 +164,7 @@ export default function DashboardPage() {
             selectedEvent={selectedEvent}
             open={isDrawerOpen}
             onClose={handleDrawerClose}
+            caseId={caseId}
           />
         </>
       )}
