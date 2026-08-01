@@ -1,102 +1,151 @@
 import * as React from "react";
-import { format } from "date-fns";
+import { SearchX } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import type { EventLevel, EvtxEvent } from "@/types/evidence";
+import type { EvtxEvent } from "@/types/evidence";
+import { useEvidenceStore } from "@/store/evidenceStore";
 import { useUIStore } from "@/store/uiStore";
+import { useNotesStore, useEnsureCaseNotesLoaded } from "@/store/notesStore";
+import { useBookmarkMap, useEnsureCaseBookmarksLoaded } from "@/store/bookmarksStore";
+import {
+  DEFAULT_TIMELINE_FILTERS,
+  filterTimelineEvents,
+  groupEventsByDay,
+  calculateTimelineStatistics,
+  hasActiveTimelineFilters,
+  getUniqueProviders,
+  type TimelineFilters,
+} from "@/lib/timeline";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { TimelineStatistics } from "@/components/timeline/TimelineStatistics";
+import { TimelineToolbar } from "@/components/timeline/TimelineToolbar";
+import { TimelineDaySection } from "@/components/timeline/TimelineDaySection";
+import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
 
-const LEVEL_DOT: Record<EventLevel, string> = {
-  Critical: "bg-severity-critical",
-  Error: "bg-severity-critical",
-  Warning: "bg-severity-warning",
-  Information: "bg-primary",
-  Verbose: "bg-muted-foreground",
-};
+// Stable empty-object references so the `useNotesStore`/`useBookmarksStore`
+// selectors below never manufacture a fresh `{}` on every render when a
+// case has no data yet — same reasoning as bookmarksStore.ts's own
+// internal `EMPTY_MAP` constant.
+const EMPTY_RECORD: Readonly<Record<string, unknown>> = {};
 
 interface EventTimelineProps {
   events: EvtxEvent[];
 }
 
 /**
- * Chronological event list grouped by day, most recent first. Clicking
- * an entry sets `uiStore.selectedEvent` — the same cross-panel selection
- * the Evidence Table writes to — so a future detail panel can react to
- * either surface.
+ * Professional investigation timeline (Sprint 4.3) — orchestrates the
+ * toolbar, statistics, and grouped/collapsible day sections, all backed by
+ * pure logic in lib/timeline.ts. Clicking an entry opens the *existing*
+ * EventDetailsDrawer (also used by DashboardPage) rather than a
+ * timeline-local detail view, so there is exactly one place in the app
+ * that renders full event details.
  *
- * Renders every event in the DOM (no virtualization) — fine at the scale
- * exercised so far, but worth revisiting with a windowing library if
- * real-world logs with tens of thousands of events make this page feel
- * sluggish.
+ * Reads `notesStore`/`bookmarksStore` directly via their already-exported
+ * hooks (`useNotesStore`, `useBookmarkMap`, `useEnsureCase*Loaded`) rather
+ * than through any new export — this sprint must not modify the Notes or
+ * Bookmark systems themselves, only consume their existing public API,
+ * the same way NoteIndicator/BookmarkIndicator already do inside
+ * EvidenceTable's columns.
  */
 export function EventTimeline({ events }: EventTimelineProps) {
-  const selectedEvent = useUIStore((s) => s.selectedEvent);
+  const caseId = useEvidenceStore((s) => s.uploadedFile?.name ?? null);
   const selectEvent = useUIStore((s) => s.selectEvent);
 
-  const groups = React.useMemo(() => {
-    const sorted = [...events].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
-    const map = new Map<string, EvtxEvent[]>();
-    for (const event of sorted) {
-      const day = format(new Date(event.timestamp), "EEEE, MMMM d, yyyy");
-      if (!map.has(day)) map.set(day, []);
-      map.get(day)!.push(event);
-    }
-    return Array.from(map.entries());
-  }, [events]);
+  useEnsureCaseNotesLoaded(caseId);
+  useEnsureCaseBookmarksLoaded(caseId);
+  const noteMap = useNotesStore((s) => (caseId ? (s.eventNotes[caseId] ?? EMPTY_RECORD) : EMPTY_RECORD));
+  const bookmarkMap = useBookmarkMap(caseId);
+
+  const [filters, setFilters] = React.useState<TimelineFilters>(DEFAULT_TIMELINE_FILTERS);
+  const providers = React.useMemo(() => getUniqueProviders(events), [events]);
+
+  // Timeline Statistics (Sprint 4.3) are deliberately case-wide — computed
+  // from the full `events` prop, not the toolbar-filtered subset — see
+  // lib/timeline.ts's calculateTimelineStatistics doc comment for why,
+  // mirroring how the Dashboard's own Statistics Cards stay case-wide too.
+  const statistics = React.useMemo(
+    () => calculateTimelineStatistics(events, bookmarkMap, noteMap),
+    [events, bookmarkMap, noteMap],
+  );
+
+  const filteredEvents = React.useMemo(
+    () => filterTimelineEvents(events, filters, bookmarkMap, noteMap),
+    [events, filters, bookmarkMap, noteMap],
+  );
+  const dayGroups = React.useMemo(() => groupEventsByDay(filteredEvents), [filteredEvents]);
+
+  // Event Details Inspector — local React state, same pattern as
+  // DashboardPage.tsx (deliberately not lifted into Zustand). Still also
+  // writes to `uiStore.selectedEvent` on click for cross-panel
+  // consistency with the Evidence Table, matching that page's existing
+  // dual-write behavior — but this component's own row-highlight styling
+  // reads the local state below, not the store, since the store isn't
+  // reset when the drawer closes.
+  const [selectedEvent, setSelectedEvent] = React.useState<EvtxEvent | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+
+  const handleSelectEvent = React.useCallback(
+    (event: EvtxEvent) => {
+      selectEvent(event);
+      setSelectedEvent(event);
+      setIsDrawerOpen(true);
+    },
+    [selectEvent],
+  );
+  const handleDrawerClose = React.useCallback(() => setIsDrawerOpen(false), []);
 
   return (
-    <ScrollArea className="h-[calc(100vh-16rem)] min-h-80 rounded-lg border border-border">
-      <div className="p-4 sm:p-6">
-        {groups.map(([day, dayEvents]) => (
-          <section key={day} className="mb-8 last:mb-0">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {day}
-            </h3>
-            <ol className="relative border-l border-border pl-6">
-              {dayEvents.map((event) => (
-                <li key={event.id} className="relative mb-5 last:mb-0">
-                  <span
-                    className={cn(
-                      "absolute -left-[29px] mt-2.5 h-2.5 w-2.5 rounded-full ring-4 ring-background",
-                      LEVEL_DOT[event.level],
-                    )}
-                    aria-hidden="true"
+    <>
+      <TimelineStatistics statistics={statistics} />
+
+      <Card>
+        <CardContent className="flex flex-col gap-6 p-6">
+          <TimelineToolbar
+            filters={filters}
+            onFiltersChange={setFilters}
+            hasActiveFilters={hasActiveTimelineFilters(filters)}
+            providers={providers}
+          />
+
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredEvents.length.toLocaleString()} of {events.length.toLocaleString()} Events
+          </p>
+
+          <ScrollArea className="h-[calc(100vh-32rem)] min-h-80 rounded-lg border border-border">
+            <div className="p-4 sm:p-6">
+              {dayGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-16">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <SearchX className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <p className="font-medium text-foreground">No matching events</p>
+                  <p className="max-w-xs text-center text-sm text-muted-foreground">
+                    Try adjusting your search or clearing the active filters.
+                  </p>
+                </div>
+              ) : (
+                dayGroups.map((group, index) => (
+                  <TimelineDaySection
+                    key={group.key}
+                    label={group.label}
+                    events={group.events}
+                    defaultExpanded={index === 0}
+                    selectedEventId={selectedEvent?.id}
+                    onSelectEvent={handleSelectEvent}
                   />
-                  <button
-                    type="button"
-                    onClick={() => selectEvent(event)}
-                    className={cn(
-                      "w-full rounded-md p-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      selectedEvent?.id === event.id && "bg-primary/5",
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <time
-                        dateTime={event.timestamp}
-                        className="font-mono text-xs tabular-nums text-muted-foreground"
-                      >
-                        {format(new Date(event.timestamp), "HH:mm:ss")}
-                      </time>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {event.eventId}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">{event.provider}</span>
-                      <span aria-hidden="true" className="text-xs text-muted-foreground">
-                        ·
-                      </span>
-                      <span className="text-xs text-muted-foreground">{event.computer}</span>
-                    </div>
-                    <p className="mt-1 truncate text-sm text-foreground">{event.message}</p>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))}
-      </div>
-    </ScrollArea>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <EventDetailsDrawer
+        selectedEvent={selectedEvent}
+        open={isDrawerOpen}
+        onClose={handleDrawerClose}
+        caseId={caseId}
+      />
+    </>
   );
 }
