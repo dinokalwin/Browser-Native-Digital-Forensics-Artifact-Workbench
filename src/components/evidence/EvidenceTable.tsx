@@ -40,6 +40,20 @@ interface EvidenceTableProps {
    * (still what drives this table's own row-highlight styling below).
    */
   onRowClick?: (event: EvtxEvent) => void;
+  /**
+   * Whether to render the built-in `EvidenceTableToolbar` (search/level/
+   * provider dropdowns + export + selection count). Defaults to `true` so
+   * every existing consumer — most notably EvidenceViewerPage
+   * (`/dashboard/evidence`), which has no other filter/export UI of its
+   * own — keeps behaving exactly as before. DashboardPage (Sprint 3.4.1)
+   * passes `false` because its "All Events" card now supplies an
+   * equivalent FilterToolbar + results/export row itself, and rendering
+   * both would duplicate controls that write to the same `filterStore`
+   * state (see SuspiciousEventsPanel's "go to event" deep link, which
+   * still depends on that store regardless of whether this toolbar is
+   * visible).
+   */
+  showToolbar?: boolean;
 }
 
 /**
@@ -62,7 +76,12 @@ interface EvidenceTableProps {
  * rows behind TanStack Table, that render is real work worth skipping
  * when none of this component's own props actually changed.
  */
-function EvidenceTableImpl({ data, isLoading = false, onRowClick }: EvidenceTableProps) {
+function EvidenceTableImpl({
+  data,
+  isLoading = false,
+  onRowClick,
+  showToolbar = true,
+}: EvidenceTableProps) {
   const searchQuery = useFilterStore((s) => s.searchQuery);
   const activeFilters = useFilterStore((s) => s.activeFilters);
   const sorting = useFilterStore((s) => s.sorting);
@@ -142,14 +161,20 @@ function EvidenceTableImpl({ data, isLoading = false, onRowClick }: EvidenceTabl
     // `overflow-x-auto` wrapper (src/components/ui/table.tsx) actually
     // scroll locally instead of the page growing to fit it.
     <div className="flex min-w-0 flex-col gap-4 [&>*]:min-w-0">
-      <EvidenceTableToolbar
-        data={data}
-        visibleEvents={visibleEvents}
-        selectedCount={selectedCount}
-        totalCount={visibleEvents.length}
-      />
+      {showToolbar && (
+        <EvidenceTableToolbar
+          data={data}
+          visibleEvents={visibleEvents}
+          selectedCount={selectedCount}
+          totalCount={visibleEvents.length}
+        />
+      )}
 
-      <div className="rounded-lg border border-border">
+      {/* Bounded height + its own vertical scroll so TableHeader's
+          `sticky top-0` (ui/table.tsx) has a scrolling ancestor to stick
+          within — self-contained, so it doesn't depend on (or need to
+          coordinate z-index/offset with) AppShell's own sticky navbar. */}
+      <div className="max-h-[32rem] overflow-y-auto rounded-lg border border-border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -203,7 +228,7 @@ function EvidenceTableImpl({ data, isLoading = false, onRowClick }: EvidenceTabl
                   }}
                   className={cn(
                     "cursor-pointer",
-                    selectedEvent?.id === row.original.id && "bg-primary/5",
+                    selectedEvent?.id === row.original.id && "bg-primary/10 hover:bg-primary/15",
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

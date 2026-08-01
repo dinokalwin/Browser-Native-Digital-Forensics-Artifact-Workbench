@@ -10,6 +10,19 @@
  */
 @layer base {
   :root {
+    /*
+     * Tells the browser which palette to use for UA-rendered chrome it
+     * doesn't hand control of to page CSS — most relevantly here, the
+     * popup list a native <select> opens (FilterToolbar.tsx's Provider/
+     * Computer/Level filters). That popup is drawn by the OS/browser
+     * widget layer, not the page's own DOM, so Tailwind classes on the
+     * <select>/<option> elements only style the closed control; without
+     * this hint the popup defaults to a light theme regardless of the
+     * page's own dark palette. Also affects other native chrome (default
+     * scrollbars, form control accents) consistently with the theme.
+     */
+    color-scheme: light;
+
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
 
@@ -46,6 +59,8 @@
   }
 
   .dark {
+    color-scheme: dark;
+
     --background: 222 47% 5%;
     --foreground: 210 40% 96%;
 

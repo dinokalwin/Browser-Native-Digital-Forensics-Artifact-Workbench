@@ -19,9 +19,28 @@ import { Button } from "@/components/ui/button";
  * built for menus/actions, not a bound `<select>`-style form control).
  * Introducing `@radix-ui/react-select` for one toolbar felt like the wrong
  * trade-off — see the sprint report for this call.
+ *
+ * `bg-background` (rather than Input's `bg-transparent`) is intentional
+ * here: it's the same token, but explicit rather than inherited, so the
+ * closed control's color unambiguously tracks the active theme even if
+ * some future ancestor's background changes.
  */
 const selectClassName =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50";
+
+/**
+ * Tailwind classes for each `<option>`. The *open* popup a native
+ * `<select>` renders is drawn by the OS/browser widget layer, not this
+ * component's own DOM — Tailwind classes on the `<select>` itself only
+ * ever reach the closed control. `color-scheme` (set per-theme in
+ * index.css) is what makes the popup follow the app's dark/light palette
+ * at the browser-chrome level; these `bg-popover`/`text-foreground`
+ * classes are the belt-and-braces second layer some browsers (notably
+ * Firefox) additionally honor for `<option>` background/text directly.
+ * `checked:` targets the currently-selected option as the closest native
+ * equivalent to "selected option: primary color" a `<select>` supports.
+ */
+const optionClassName = "bg-popover text-foreground checked:bg-primary checked:text-primary-foreground";
 
 interface FilterFieldProps {
   label: string;
@@ -126,61 +145,79 @@ export function FilterToolbar({
   const active = hasActiveFilters(filters);
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card p-4 shadow-sm", className)}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <FilterField label="Search" htmlFor="filter-search" className="lg:col-span-2">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              id="filter-search"
-              value={searchInput}
-              onChange={(e) => handleSearchInput(e.target.value)}
-              placeholder="Event ID, provider, computer, user, message…"
-              className="pl-8"
-            />
-          </div>
-        </FilterField>
+    // No border/shadow/background of its own — this toolbar lives inside
+    // DashboardPage's unified "All Events" Card, so its own bordered box
+    // would just recreate the "boxes inside boxes" look these sprints set
+    // out to remove. Two rows, matching the ticket's desired layout: the
+    // investigation search bar gets a full-width row of its own (it's the
+    // primary, most-used control and should read as visually dominant,
+    // not compete for space with four dropdowns), then Provider/Computer/
+    // Event ID/Level plus Clear Filters share a second `flex-wrap` row —
+    // each field carries its own `min-w`, so that row holds a single line
+    // at wide desktop widths, wraps naturally as space runs out at
+    // laptop/tablet widths, and stacks one field per line on mobile,
+    // without hand-tuning a column count per breakpoint.
+    <div className={cn("flex flex-col gap-4", className)}>
+      <FilterField label="Search Events" htmlFor="filter-search">
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id="filter-search"
+            value={searchInput}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            placeholder="Search by event ID, provider, computer, user, or message…"
+            className="h-10 pl-9 text-sm"
+          />
+        </div>
+      </FilterField>
 
-        <FilterField label="Provider" htmlFor="filter-provider">
+      <div className="flex flex-wrap items-end gap-4">
+        <FilterField label="Provider" htmlFor="filter-provider" className="min-w-[160px] flex-1">
           <select
             id="filter-provider"
             className={selectClassName}
+            aria-label="Filter by provider"
             value={filters.provider ?? ""}
             onChange={(e) =>
               onFiltersChange({ ...filters, provider: e.target.value === "" ? null : e.target.value })
             }
           >
-            <option value="">All Providers</option>
+            <option value="" className={optionClassName}>
+              All Providers
+            </option>
             {providers.map((provider) => (
-              <option key={provider} value={provider}>
+              <option key={provider} value={provider} className={optionClassName}>
                 {provider}
               </option>
             ))}
           </select>
         </FilterField>
 
-        <FilterField label="Computer" htmlFor="filter-computer">
+        <FilterField label="Computer" htmlFor="filter-computer" className="min-w-[160px] flex-1">
           <select
             id="filter-computer"
             className={selectClassName}
+            aria-label="Filter by computer"
             value={filters.computer ?? ""}
             onChange={(e) =>
               onFiltersChange({ ...filters, computer: e.target.value === "" ? null : e.target.value })
             }
           >
-            <option value="">All Computers</option>
+            <option value="" className={optionClassName}>
+              All Computers
+            </option>
             {computers.map((computer) => (
-              <option key={computer} value={computer}>
+              <option key={computer} value={computer} className={optionClassName}>
                 {computer}
               </option>
             ))}
           </select>
         </FilterField>
 
-        <FilterField label="Event ID" htmlFor="filter-event-id">
+        <FilterField label="Event ID" htmlFor="filter-event-id" className="min-w-[140px] flex-1">
           <div className="relative">
             <Hash
               className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -202,10 +239,11 @@ export function FilterToolbar({
           </div>
         </FilterField>
 
-        <FilterField label="Level" htmlFor="filter-level">
+        <FilterField label="Level" htmlFor="filter-level" className="min-w-[140px] flex-1">
           <select
             id="filter-level"
             className={selectClassName}
+            aria-label="Filter by level"
             value={filters.level}
             onChange={(e) =>
               onFiltersChange({
@@ -215,16 +253,20 @@ export function FilterToolbar({
             }
           >
             {LEVEL_FILTER_OPTIONS.map((level) => (
-              <option key={level} value={level}>
+              <option key={level} value={level} className={optionClassName}>
                 {level}
               </option>
             ))}
           </select>
         </FilterField>
-      </div>
 
-      <div className="mt-3 flex justify-end">
-        <Button variant="ghost" size="sm" disabled={!active} onClick={handleClear} className="gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!active}
+          onClick={handleClear}
+          className="ml-auto gap-1.5"
+        >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
           Clear Filters
         </Button>

@@ -15,7 +15,20 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b [&_tr]:border-border", className)} {...props} />
+  // `sticky top-0` is inert unless an ancestor actually constrains height
+  // and scrolls (see EvidenceTable.tsx's `max-h-[32rem] overflow-y-auto`
+  // wrapper) — harmless no-op for any other consumer of <Table>. The solid
+  // `bg-background` (rather than a translucent tint) is required for that
+  // sticky case: without an opaque background, body rows would show
+  // through as they scroll underneath the header.
+  <thead
+    ref={ref}
+    className={cn(
+      "sticky top-0 z-10 bg-background [&_tr]:border-b [&_tr]:border-border",
+      className,
+    )}
+    {...props}
+  />
 ));
 TableHeader.displayName = "TableHeader";
 
@@ -44,7 +57,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        "border-b border-border transition-colors hover:bg-muted/40 data-[state=selected]:bg-primary/5",
+        "border-b border-border transition-colors hover:bg-muted/60 data-[state=selected]:bg-primary/10 data-[state=selected]:hover:bg-primary/15",
         className,
       )}
       {...props}
@@ -60,7 +73,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-10 whitespace-nowrap px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "h-11 whitespace-nowrap px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-foreground/70 [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
@@ -74,7 +87,7 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("px-3 py-2.5 align-middle [&:has([role=checkbox])]:pr-0", className)}
+    className={cn("px-3 py-3 align-middle [&:has([role=checkbox])]:pr-0", className)}
     {...props}
   />
 ));

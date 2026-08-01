@@ -11,6 +11,7 @@ import {
 } from "@/lib/eventFilters";
 import type { EvtxEvent } from "@/types/evidence";
 import { CaseStateGate } from "@/components/evidence/CaseStateGate";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatisticsCards } from "@/components/dashboard/StatisticsCards";
 import { FilterToolbar } from "@/components/dashboard/FilterToolbar";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
@@ -18,6 +19,7 @@ import { RiskScoreCard } from "@/components/dashboard/RiskScoreCard";
 import { SuspiciousEventsPanel } from "@/components/dashboard/SuspiciousEventsPanel";
 import { InvestigationSummaryPanel } from "@/components/dashboard/InvestigationSummaryPanel";
 import { EvidenceTable } from "@/components/evidence/EvidenceTable";
+import { ExportControls } from "@/components/evidence/ExportControls";
 import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
 
 /**
@@ -109,26 +111,45 @@ export default function DashboardPage() {
             {investigationSummary && <InvestigationSummaryPanel summary={investigationSummary} />}
           </div>
 
-          <div>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              All Events
-            </h2>
+          {/*
+            Sprint 3.4.1: the whole "All Events" workspace — heading,
+            filters, results summary, export actions, and the table itself
+            — now lives inside one Card instead of several visually
+            disconnected blocks stacked on the page. Internal rhythm is
+            standardized on gap-6 (Card content) / gap-4 (toolbar-to-table
+            spacing), matching the rest of the dashboard.
+          */}
+          <Card>
+            <CardContent className="flex flex-col gap-6 p-6">
+              <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                All Events
+              </h2>
 
-            <FilterToolbar
-              filters={filters}
-              onFiltersChange={setFilters}
-              providers={providers}
-              computers={computers}
-              className="mb-3"
-            />
+              <FilterToolbar
+                filters={filters}
+                onFiltersChange={setFilters}
+                providers={providers}
+                computers={computers}
+              />
 
-            <p className="mb-3 text-sm text-muted-foreground">
-              Showing {filteredEvents.length.toLocaleString()} of {allEvents.length.toLocaleString()}{" "}
-              events
-            </p>
+              {/*
+                Results summary + export actions share one compact row
+                (ticket's "Action Toolbar" moved next to the results count,
+                actions right-aligned) — matches this sprint's desired
+                layout mock exactly: "Showing X of Y Events" regardless of
+                whether a filter has actually narrowed the set.
+              */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {filteredEvents.length.toLocaleString()} of{" "}
+                  {allEvents.length.toLocaleString()} Events
+                </p>
+                <ExportControls events={filteredEvents} />
+              </div>
 
-            <EvidenceTable data={filteredEvents} onRowClick={handleRowClick} />
-          </div>
+              <EvidenceTable data={filteredEvents} onRowClick={handleRowClick} showToolbar={false} />
+            </CardContent>
+          </Card>
 
           <EventDetailsDrawer
             selectedEvent={selectedEvent}
