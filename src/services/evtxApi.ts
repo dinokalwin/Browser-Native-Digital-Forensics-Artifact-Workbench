@@ -10,14 +10,26 @@
  */
 import {
   parseEVTX as backendParseEVTX,
+  detectIOCs as backendDetectIOCs,
+  adaptToSuspiciousFindings as backendAdaptToSuspiciousFindings,
   detectSuspicious as backendDetectSuspicious,
   generateInvestigationSummary as backendGenerateInvestigationSummary,
   exportCSV as backendExportCSV,
   exportJSON as backendExportJSON,
 } from "@/backend";
 import type { EvtxEvent, SuspiciousFinding } from "@/types/evidence";
+import type { DetectionFinding } from "@/lib/detection/types";
 
 export const parseEVTX = (file: File) => backendParseEVTX(file);
+
+/** Phase 5.4 — the modular IOC Detection Engine's own, richer finding
+ * shape. `evidenceStore.ts`'s pipeline calls this once and adapts its
+ * result via `adaptToSuspiciousFindings` below rather than calling
+ * `detectSuspicious` separately (which would re-run the same engine). */
+export const detectIOCs = (events: EvtxEvent[]) => backendDetectIOCs(events);
+
+export const adaptToSuspiciousFindings = (findings: DetectionFinding[]) =>
+  backendAdaptToSuspiciousFindings(findings);
 
 export const detectSuspicious = (events: EvtxEvent[]) => backendDetectSuspicious(events);
 

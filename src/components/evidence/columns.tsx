@@ -105,6 +105,26 @@ export const columns: ColumnDef<EvtxEvent>[] = [
     meta: { className: "hidden lg:table-cell" },
   },
   {
+    // Source EVTX file (Phase 5.7 — Multi-EVTX Investigation). Every event
+    // carries `sourceFile` once loaded through evidenceStore.ts, even in a
+    // single-file case (see lib/multiFile.ts), so this column always has a
+    // value to show; hidden below `xl` alongside Provider/Computer/User as
+    // the lowest-priority of the always-present columns, and via the same
+    // horizontally-scrollable fallback none of that data is ever
+    // unreachable, just deprioritized on narrow viewports.
+    accessorKey: "sourceFile",
+    header: ({ column }) => <SortableHeader column={column} label="Source" />,
+    cell: ({ getValue }) => {
+      const sourceFile = getValue<string | undefined>();
+      return (
+        <span className="block max-w-40 truncate text-xs text-muted-foreground" title={sourceFile}>
+          {sourceFile ?? "—"}
+        </span>
+      );
+    },
+    meta: { className: "hidden xl:table-cell" },
+  },
+  {
     accessorKey: "user",
     header: ({ column }) => <SortableHeader column={column} label="User" />,
     cell: ({ getValue }) => (

@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { LevelBadge } from "@/components/evidence/level-badge";
 import { EventNoteSection } from "@/components/notes/EventNoteSection";
 import { BookmarkToggleButton } from "@/components/bookmarks/BookmarkToggleButton";
+import { IOCDetailsSection } from "@/components/detection/IOCDetailsSection";
 
 export interface EventDetailsDrawerProps {
   /** Event to display. Only read while `open` — the drawer keeps showing
@@ -169,6 +170,8 @@ function EventDetailsDrawerImpl({
                 </div>
 
                 <Separator />
+
+                <IOCDetailsSection eventId={selectedEvent.id} />
 
                 <EventNoteSection caseId={caseId} eventId={selectedEvent.id} />
 

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { Button } from "@/components/ui/button";
 import { FileInfoCard } from "@/components/upload/FileInfoCard";
+import { SelectedFilesCard } from "@/components/upload/SelectedFilesCard";
 
 /** Anything larger than this still parses normally — it's a heads-up, not a limit. */
 const MAX_FILE_SIZE_WARNING = 500 * 1024 * 1024; // 500 MB
@@ -42,66 +43,99 @@ function isLargeFile(file: File): boolean {
 /**
  * Drag-and-drop / click-to-browse upload surface for the landing page.
  *
- * Validates the file (see `validateFile`), hands it to
- * `evidenceStore.loadFile` (which runs the real browser-native EVTX
- * parser — see src/backend/evtx-parser.ts — entirely client-side, nothing
- * is uploaded to a server), and navigates to the dashboard only once that
- * pipeline reports success. On failure the user stays here and sees the
- * error.
+ * Validates every selected file (see `validateFile`), hands the valid ones
+ * to `evidenceStore.loadFiles` (Phase 5.7 — Multi-EVTX Investigation; each
+ * file is still parsed independently by the same real browser-native EVTX
+ * parser, see src/backend/evtx-parser.ts — entirely client-side, nothing is
+ * uploaded to a server), and navigates to the dashboard once that pipeline
+ * reports at least one file loaded successfully. On total failure the user
+ * stays here and sees the error.
  */
 export function DropZone() {
   const navigate = useNavigate();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = React.useState(false);
   const [localError, setLocalError] = React.useState<string | null>(null);
-  // Local-only, purely presentational: powers FileInfoCard (name/size/last
-  // modified) without adding anything to evidenceStore. The store's
-  // UploadedFileMeta intentionally doesn't carry the browser File object or
-  // its lastModified timestamp, and that's out of scope here — this state
-  // never feeds the parsing pipeline, which continues to read `file`
-  // directly in handleFiles exactly as before.
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  // Local-only, purely presentational: powers FileInfoCard/SelectedFilesCard
+  // (name/size/last modified) without adding anything to evidenceStore. The
+  // store's UploadedFileMeta intentionally doesn't carry the browser File
+  // object or its lastModified timestamp, and that's out of scope here —
+  // this state never feeds the parsing pipeline, which continues to read
+  // the validated `File[]` directly in handleFiles exactly as before.
+  const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
 
-  const loadFile = useEvidenceStore((s) => s.loadFile);
+  const loadFiles = useEvidenceStore((s) => s.loadFiles);
   const status = useEvidenceStore((s) => s.status);
   const backendError = useEvidenceStore((s) => s.error);
   const eventCount = useEvidenceStore((s) => s.events.length);
+  const failedFiles = useEvidenceStore((s) => s.failedFiles);
   const isBusy = status === "parsing" || status === "analyzing";
 
   const handleFiles = React.useCallback(
-    async (files: FileList | null) => {
-      const file = files?.[0];
-      if (!file) return;
+    async (fileList: FileList | null) => {
+      const incoming = Array.from(fileList ?? []);
+      if (incoming.length === 0) return;
 
-      const validationError = validateFile(file);
-      if (validationError) {
-        setLocalError(validationError);
+      const validFiles: File[] = [];
+      const invalidFiles: Array<{ file: File; reason: string }> = [];
+      for (const file of incoming) {
+        const validationError = validateFile(file);
+        if (validationError) invalidFiles.push({ file, reason: validationError });
+        else validFiles.push(file);
+      }
+
+      if (validFiles.length === 0) {
+        // Every selected file was rejected — show the first reason inline,
+        // same single-message treatment as the pre-5.7 single-file path.
+        setLocalError(invalidFiles[0]?.reason ?? "No valid .evtx files were selected.");
         return;
       }
 
-      if (isLargeFile(file)) {
+      if (invalidFiles.length > 0) {
+        toast.warning(
+          invalidFiles.length === 1
+            ? `Skipped "${invalidFiles[0].file.name}": ${invalidFiles[0].reason}`
+            : `Skipped ${invalidFiles.length} files that aren't valid .evtx files.`,
+        );
+      }
+
+      if (validFiles.some(isLargeFile)) {
         toast.warning("Large file detected. Parsing may take longer.");
       }
 
       setLocalError(null);
-      setSelectedFile(file);
-      await loadFile(file);
+      setSelectedFiles(validFiles);
+      await loadFiles(validFiles);
 
-      // Only navigate on a successful parse — on failure the store's
-      // `error` is already set and rendered below, and the user should
-      // stay put to see it (and try another file) rather than land on a
-      // dashboard with nothing in it.
+      // Only navigate once at least one file parsed successfully — on
+      // total failure the store's `error` is already set and rendered
+      // below, and the user should stay put to see it (and try again)
+      // rather than land on a dashboard with nothing in it.
       const state = useEvidenceStore.getState();
       if (state.status === "ready") {
-        toast.success("EVTX file parsed successfully", {
-          description: `${state.events.length.toLocaleString()} events extracted from ${file.name}`,
-        });
+        toast.success(
+          validFiles.length === 1 ? "EVTX file parsed successfully" : "EVTX files parsed successfully",
+          {
+            description:
+              validFiles.length === 1
+                ? `${state.events.length.toLocaleString()} events extracted from ${validFiles[0].name}`
+                : `${state.events.length.toLocaleString()} merged events extracted from ${state.uploadedFiles.length.toLocaleString()} of ${validFiles.length.toLocaleString()} files`,
+          },
+        );
+        if (state.failedFiles.length > 0) {
+          toast.warning(`${state.failedFiles.length.toLocaleString()} file(s) failed to parse and were skipped.`, {
+            description: state.failedFiles.join(", "),
+          });
+        }
         navigate("/dashboard");
       } else if (state.status === "error") {
-        toast.error("Couldn't parse this file", { description: state.error ?? undefined });
+        toast.error(
+          validFiles.length === 1 ? "Couldn't parse this file" : "Couldn't parse any of the selected files",
+          { description: state.error ?? undefined },
+        );
       }
     },
-    [loadFile, navigate],
+    [loadFiles, navigate],
   );
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -117,7 +151,7 @@ export function DropZone() {
       <motion.div
         role="button"
         tabIndex={0}
-        aria-label="Upload EVTX file"
+        aria-label="Upload EVTX file or files"
         onClick={() => inputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
@@ -140,6 +174,7 @@ export function DropZone() {
           ref={inputRef}
           type="file"
           accept=".evtx"
+          multiple
           className="sr-only"
           onChange={(e) => void handleFiles(e.target.files)}
         />
@@ -157,7 +192,7 @@ export function DropZone() {
             {isBusy ? "Parsing EVTX file…" : "Upload EVTX File"}
           </p>
           <p className="text-sm text-muted-foreground">
-            Drag and drop a Windows Event Log (.evtx) file here, or click to browse.
+            Drag and drop one or more Windows Event Log (.evtx) files here, or click to browse.
           </p>
         </div>
 
@@ -196,15 +231,25 @@ export function DropZone() {
       )}
 
       <AnimatePresence mode="wait">
-        {selectedFile && !localError && (
+        {selectedFiles.length === 1 && !localError && (
           <FileInfoCard
             // Keyed by identity so a newly-selected file (even one that
             // reuses the same name) remounts and replays the enter
             // animation, instead of silently patching the previous card.
-            key={`${selectedFile.name}-${selectedFile.lastModified}-${selectedFile.size}`}
-            file={selectedFile}
+            key={`${selectedFiles[0].name}-${selectedFiles[0].lastModified}-${selectedFiles[0].size}`}
+            file={selectedFiles[0]}
             status={status}
             eventCount={status === "ready" ? eventCount : null}
+            className="mt-4"
+          />
+        )}
+        {selectedFiles.length > 1 && !localError && (
+          <SelectedFilesCard
+            key={selectedFiles.map((file) => `${file.name}-${file.lastModified}-${file.size}`).join("|")}
+            files={selectedFiles}
+            status={status}
+            eventCount={status === "ready" ? eventCount : null}
+            failedFiles={failedFiles}
             className="mt-4"
           />
         )}

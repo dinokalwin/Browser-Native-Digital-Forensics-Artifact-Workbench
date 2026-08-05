@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { calculateStatistics } from "@/lib/statistics";
@@ -7,16 +7,26 @@ import {
   filterEvents,
   getUniqueComputers,
   getUniqueProviders,
+  getUniqueSourceFiles,
   type InvestigationFilters,
 } from "@/lib/eventFilters";
 import type { EvtxEvent } from "@/types/evidence";
+import { computePerFileStatistics } from "@/lib/multiFile";
+import { aggregateMitreFindings } from "@/lib/mitre/aggregation";
+import {
+  buildMitreSummarySentence,
+  computeAdvancedMitreStats,
+  computeCoverageStats,
+  countCriticalTechniques,
+} from "@/lib/mitre/statistics";
 import { CaseStateGate } from "@/components/evidence/CaseStateGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatisticsCards } from "@/components/dashboard/StatisticsCards";
+import { MultiFileSummaryCard } from "@/components/dashboard/MultiFileSummaryCard";
 import { FilterToolbar } from "@/components/dashboard/FilterToolbar";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { RiskScoreCard } from "@/components/dashboard/RiskScoreCard";
-import { SuspiciousEventsPanel } from "@/components/dashboard/SuspiciousEventsPanel";
+import { IOCFindingsPanel } from "@/components/detection/IOCFindingsPanel";
 import { InvestigationSummaryPanel } from "@/components/dashboard/InvestigationSummaryPanel";
 import { EvidenceTable } from "@/components/evidence/EvidenceTable";
 import { ExportControls } from "@/components/evidence/ExportControls";
@@ -24,6 +34,16 @@ import { EventDetailsDrawer } from "@/components/evidence/EventDetailsDrawer";
 import { CaseNotesPanel } from "@/components/notes/CaseNotesPanel";
 import { BookmarkedEventsCard } from "@/components/dashboard/BookmarkedEventsCard";
 import { useBookmarkMap } from "@/store/bookmarksStore";
+import { GenerateReportButton } from "@/components/report/GenerateReportButton";
+
+// Phase 5.6 — lazy-loaded the same way DashboardPage/EvidenceViewerPage/
+// TimelinePage already are at the route level (routes/index.tsx, not
+// touched here): recharts and every analytics chart component are only
+// fetched once the dashboard actually renders, in their own chunk, rather
+// than adding to DashboardPage's own chunk. A local Suspense boundary
+// (below) covers just this section, so the rest of the dashboard doesn't
+// wait on it.
+const AnalyticsPanel = lazy(() => import("@/components/analytics/AnalyticsPanel"));
 
 /**
  * Case overview (Phase 7). Backed by real parsed events plus the
@@ -34,8 +54,37 @@ import { useBookmarkMap } from "@/store/bookmarksStore";
  * than showing fabricated data.
  */
 export default function DashboardPage() {
-  const suspiciousFindings = useEvidenceStore((s) => s.suspiciousFindings);
+  // Phase 5.4 — the modular IOC Detection Engine's own, richer findings
+  // (src/lib/detection/), replacing `suspiciousFindings` as what this page
+  // renders. `suspiciousFindings` itself is unchanged and still populated
+  // (lib/report.ts and the PDF export still read it via evidenceStore
+  // directly) — this page just no longer needs it locally.
+  const iocFindings = useEvidenceStore((s) => s.iocFindings);
   const investigationSummary = useEvidenceStore((s) => s.investigationSummary);
+
+  // Sprint 5.9.4 — Platform-wide MITRE ATT&CK Integration. Reuses the exact
+  // same `lib/mitre` aggregation/statistics functions the MITRE ATT&CK page
+  // (MitreAttackPage.tsx) already computes from `iocFindings` — this is a
+  // second *call* to those pure functions from a different page, not a
+  // second aggregation algorithm, and stays a cheap, memoized re-derivation
+  // of the same small array (never a re-scan of `events`), matching this
+  // sprint's "Reuse existing aggregation. No duplicate calculations."
+  // requirement.
+  const mitreAggregation = useMemo(() => aggregateMitreFindings(iocFindings), [iocFindings]);
+  const mitreCoverageStats = useMemo(() => computeCoverageStats(mitreAggregation), [mitreAggregation]);
+  const mitreAdvancedStats = useMemo(() => computeAdvancedMitreStats(mitreAggregation), [mitreAggregation]);
+  const mitreSummary = useMemo(
+    () => ({
+      coveragePercent: mitreCoverageStats.coveragePercent,
+      criticalTechniqueCount: countCriticalTechniques(mitreAggregation),
+      topTactic: mitreAdvancedStats.highestRiskTactic,
+      topTechnique: mitreAdvancedStats.highestRiskTechnique
+        ? { id: mitreAdvancedStats.highestRiskTechnique.id, name: mitreAdvancedStats.highestRiskTechnique.name }
+        : null,
+    }),
+    [mitreCoverageStats, mitreAdvancedStats, mitreAggregation],
+  );
+  const mitreSummarySentence = useMemo(() => buildMitreSummarySentence(mitreAggregation), [mitreAggregation]);
   // Read directly from the store (same pattern as the two selectors above)
   // rather than from CaseStateGate's render-prop argument below, so the
   // memoized calculation is a top-level hook call in DashboardPage itself —
@@ -43,6 +92,17 @@ export default function DashboardPage() {
   // to CaseStateGate's render instead, which the rules of hooks disallow.
   const allEvents = useEvidenceStore((s) => s.events);
   const statistics = useMemo(() => calculateStatistics(allEvents), [allEvents]);
+
+  // Phase 5.7 — Multi-EVTX Investigation. `uploadedFiles` is the new,
+  // authoritative per-file list (see evidenceStore.ts); `perFileStatistics`
+  // is only computed (and only rendered, below) once more than one file is
+  // actually loaded, so a single-file case pays no extra cost and looks
+  // exactly as it did before this phase.
+  const uploadedFiles = useEvidenceStore((s) => s.uploadedFiles);
+  const perFileStatistics = useMemo(
+    () => computePerFileStatistics(allEvents, uploadedFiles),
+    [allEvents, uploadedFiles],
+  );
 
   // Investigator Notes (Sprint 4.1) are namespaced per case by the
   // uploaded file's name — see lib/notes.ts. Read here (rather than inside
@@ -62,6 +122,10 @@ export default function DashboardPage() {
   // options needed to broaden back out via another.
   const providers = useMemo(() => getUniqueProviders(allEvents), [allEvents]);
   const computers = useMemo(() => getUniqueComputers(allEvents), [allEvents]);
+  // Phase 5.7 — Multi-EVTX Investigation. FilterToolbar only renders the
+  // Source dropdown once this has more than one entry, so a single-file
+  // case's toolbar is unchanged from before this phase.
+  const sourceFiles = useMemo(() => getUniqueSourceFiles(allEvents), [allEvents]);
   const filteredEvents = useMemo(() => filterEvents(allEvents, filters), [allEvents, filters]);
 
   // Event Bookmarks (Sprint 4.2) — "Bookmarked Only" is a second, separate
@@ -83,6 +147,17 @@ export default function DashboardPage() {
   const allEventsCardRef = useRef<HTMLDivElement>(null);
   const handleViewBookmarked = useCallback(() => {
     setBookmarkedOnly(true);
+    allEventsCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  // Phase 5.6 — clicking a chart segment in AnalyticsPanel merges a patch
+  // into this page's own existing `filters` state via the same
+  // `setFilters` this page already passes to FilterToolbar. Nothing about
+  // how filtering itself works changes (lib/eventFilters.ts is untouched);
+  // this is just a second UI entry point into the same state, same as
+  // BookmarkedEventsCard's click-to-navigate above.
+  const handleAnalyticsFilterRequest = useCallback((patch: Partial<InvestigationFilters>) => {
+    setFilters((prev) => ({ ...prev, ...patch }));
     allEventsCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
@@ -112,6 +187,31 @@ export default function DashboardPage() {
     >
       {(events) => (
         <>
+          {/* Sprint 5.1 — report generation is a case-wide action, so it
+              sits above every section rather than inside any one of them. */}
+          <div className="flex justify-end">
+            <GenerateReportButton />
+          </div>
+
+          {/* Phase 5.7 — Multi-EVTX Investigation. Only shown once more than
+              one file contributed to this case; a single-file case already
+              conveys this via StatisticsCards and the Navbar/CaseStateGate
+              filename, so this section is pure redundancy there. */}
+          {uploadedFiles.length > 1 && (
+            <div>
+              <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Evidence Sources
+              </h2>
+              <MultiFileSummaryCard
+                fileCount={uploadedFiles.length}
+                mergedEventCount={allEvents.length}
+                earliestTimestamp={statistics.earliestTimestamp}
+                latestTimestamp={statistics.latestTimestamp}
+                perFile={perFileStatistics}
+              />
+            </div>
+          )}
+
           <div>
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
               Investigation Statistics
@@ -133,18 +233,45 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
             <RiskScoreCard
               riskScore={investigationSummary?.riskScore ?? { score: 0, level: "low" }}
+              iocFindings={iocFindings}
+              mitreSummary={mitreSummary}
             />
             <SummaryCards events={filteredEvents} />
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SuspiciousEventsPanel findings={suspiciousFindings} events={events} />
-            {investigationSummary && <InvestigationSummaryPanel summary={investigationSummary} />}
+            <IOCFindingsPanel findings={iocFindings} events={events} />
+            {investigationSummary && (
+              <InvestigationSummaryPanel
+                summary={investigationSummary}
+                mitreSummarySentence={iocFindings.length > 0 ? mitreSummarySentence : undefined}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
             <CaseNotesPanel caseId={caseId} className="sm:col-span-2" />
             <BookmarkedEventsCard caseId={caseId} onView={handleViewBookmarked} />
+          </div>
+
+          {/*
+            Phase 5.6 — Interactive Analytics Dashboard. Own Suspense
+            boundary so the rest of the page (already rendered above) never
+            waits on recharts' chunk; a lightweight skeleton fills the same
+            grid shape while it loads so the section doesn't jump once the
+            real charts mount.
+          */}
+          <div>
+            <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Analytics
+            </h2>
+            <Suspense fallback={<AnalyticsPanelSkeleton />}>
+              <AnalyticsPanel
+                events={allEvents}
+                iocFindings={iocFindings}
+                onFilterRequest={handleAnalyticsFilterRequest}
+              />
+            </Suspense>
           </div>
 
           {/*
@@ -166,6 +293,7 @@ export default function DashboardPage() {
                 onFiltersChange={setFilters}
                 providers={providers}
                 computers={computers}
+                sourceFiles={sourceFiles}
                 bookmarkedOnly={bookmarkedOnly}
                 onBookmarkedOnlyChange={setBookmarkedOnly}
               />
@@ -201,5 +329,30 @@ export default function DashboardPage() {
         </>
       )}
     </CaseStateGate>
+  );
+}
+
+/**
+ * Placeholder shown while `AnalyticsPanel`'s chunk (recharts + the seven
+ * chart components) is still being fetched — mirrors that section's own
+ * responsive grid shape (see AnalyticsPanel.tsx) purely with `Card`/
+ * `animate-pulse`, so nothing shifts once the real charts mount in.
+ */
+function AnalyticsPanelSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Sprint 5.9.4 — grew from 7 to 9 charts (Top ATT&CK Tactics/
+          Techniques added to AnalyticsPanel.tsx); this skeleton's count
+          follows so the loading placeholder still matches the real grid's
+          shape instead of visibly growing once the real charts mount. */}
+      {Array.from({ length: 9 }, (_, i) => (
+        <Card key={i}>
+          <CardContent className="flex h-72 flex-col gap-3 p-6">
+            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="flex-1 animate-pulse rounded bg-muted/60" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }

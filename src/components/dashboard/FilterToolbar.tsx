@@ -69,6 +69,15 @@ export interface FilterToolbarProps {
   /** Unique computer/hostnames for the dropdown — see getUniqueComputers in lib/eventFilters.ts. */
   computers: string[];
   /**
+   * Unique source EVTX filenames for the dropdown (Phase 5.7 — Multi-EVTX
+   * Investigation) — see getUniqueSourceFiles in lib/eventFilters.ts.
+   * Optional, defaulting to empty, and the dropdown itself only renders
+   * once there are at least two distinct sources — a single-file case has
+   * nothing meaningful to filter by source, so the control would just be
+   * clutter there.
+   */
+  sourceFiles?: string[];
+  /**
    * "Bookmarked Only" (Sprint 4.2) — deliberately NOT part of
    * `InvestigationFilters`/`onFiltersChange`: bookmarks are a separate
    * concern from `lib/eventFilters.ts` (the filtering engine, out of
@@ -97,6 +106,7 @@ export function FilterToolbar({
   onFiltersChange,
   providers,
   computers,
+  sourceFiles = [],
   bookmarkedOnly = false,
   onBookmarkedOnlyChange,
   className,
@@ -153,7 +163,14 @@ export function FilterToolbar({
   const handleClear = () => {
     if (debounceHandle.current) clearTimeout(debounceHandle.current);
     setSearchInput("");
-    onFiltersChange({ search: "", provider: null, computer: null, eventId: null, level: "All" });
+    onFiltersChange({
+      search: "",
+      provider: null,
+      computer: null,
+      eventId: null,
+      level: "All",
+      sourceFile: null,
+    });
     onBookmarkedOnlyChange?.(false);
   };
 
@@ -274,6 +291,29 @@ export function FilterToolbar({
             ))}
           </select>
         </FilterField>
+
+        {sourceFiles.length > 1 && (
+          <FilterField label="Source" htmlFor="filter-source" className="min-w-[160px] flex-1">
+            <select
+              id="filter-source"
+              className={selectClassName}
+              aria-label="Filter by source file"
+              value={filters.sourceFile ?? ""}
+              onChange={(e) =>
+                onFiltersChange({ ...filters, sourceFile: e.target.value === "" ? null : e.target.value })
+              }
+            >
+              <option value="" className={optionClassName}>
+                All Sources
+              </option>
+              {sourceFiles.map((sourceFile) => (
+                <option key={sourceFile} value={sourceFile} className={optionClassName}>
+                  {sourceFile}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+        )}
 
         {onBookmarkedOnlyChange && (
           <label

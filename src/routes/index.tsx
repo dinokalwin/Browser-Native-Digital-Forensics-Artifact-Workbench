@@ -15,6 +15,10 @@ import NotFoundPage from "@/pages/NotFoundPage";
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const EvidenceViewerPage = lazy(() => import("@/pages/EvidenceViewerPage"));
 const TimelinePage = lazy(() => import("@/pages/TimelinePage"));
+// Sprint 5.9.1 — lazy-loaded the same way as every other /dashboard
+// sub-route: recharts, the MITRE lib modules, and this page's own
+// components only ship once an investigator actually navigates here.
+const MitreAttackPage = lazy(() => import("@/pages/MitreAttackPage"));
 
 /**
  * Route map:
@@ -22,6 +26,7 @@ const TimelinePage = lazy(() => import("@/pages/TimelinePage"));
  *   /dashboard          -> AppShell > DashboardPage (overview)
  *   /dashboard/evidence -> AppShell > EvidenceViewerPage
  *   /dashboard/timeline -> AppShell > TimelinePage
+ *   /dashboard/mitre    -> AppShell > MitreAttackPage (Sprint 5.9.1)
  *   *                   -> NotFoundPage
  *
  * All case data lives in Zustand (not route params/loaders), so
@@ -40,6 +45,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: "evidence", element: <EvidenceViewerPage /> },
       { path: "timeline", element: <TimelinePage /> },
+      { path: "mitre", element: <MitreAttackPage /> },
     ],
   },
   {

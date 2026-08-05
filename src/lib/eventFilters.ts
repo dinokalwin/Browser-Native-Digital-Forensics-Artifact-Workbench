@@ -42,6 +42,15 @@ export interface InvestigationFilters {
   eventId: number | null;
   /** Exact level, or "All" for no constraint. */
   level: LevelFilterValue;
+  /**
+   * Exact source EVTX filename (Phase 5.7 — Multi-EVTX Investigation), or
+   * null for "All Sources". Matches `EvtxEvent.sourceFile`, which
+   * `evidenceStore.ts` tags onto every event at load time — see
+   * `lib/multiFile.ts`. Named `sourceFile` rather than reusing `provider`'s
+   * shape to keep it unambiguous that this filters by *which uploaded
+   * file* an event came from, not any property of the event itself.
+   */
+  sourceFile: string | null;
 }
 
 export const DEFAULT_FILTERS: InvestigationFilters = {
@@ -50,6 +59,7 @@ export const DEFAULT_FILTERS: InvestigationFilters = {
   computer: null,
   eventId: null,
   level: "All",
+  sourceFile: null,
 };
 
 export function hasActiveFilters(filters: InvestigationFilters): boolean {
@@ -58,7 +68,8 @@ export function hasActiveFilters(filters: InvestigationFilters): boolean {
     filters.provider !== null ||
     filters.computer !== null ||
     filters.eventId !== null ||
-    filters.level !== "All"
+    filters.level !== "All" ||
+    filters.sourceFile !== null
   );
 }
 
@@ -117,8 +128,9 @@ export function filterEvents(
   const hasComputer = filters.computer !== null;
   const hasEventId = filters.eventId !== null;
   const hasLevel = filters.level !== "All";
+  const hasSourceFile = filters.sourceFile !== null;
 
-  if (!hasSearch && !hasProvider && !hasComputer && !hasEventId && !hasLevel) {
+  if (!hasSearch && !hasProvider && !hasComputer && !hasEventId && !hasLevel && !hasSourceFile) {
     // Nothing active — return a fresh array (not the same reference) so
     // callers can rely on referential identity to mean "this is a filter
     // result", without needing a special case.
@@ -134,6 +146,10 @@ export function filterEvents(
     // doc comment) — comparing as strings keeps this forward-compatible
     // without requiring a cast or widening EvtxEvent's own type.
     if (hasLevel && (event.level as string) !== filters.level) continue;
+    // `sourceFile` is optional on `EvtxEvent` (see types/evidence.ts) —
+    // an event with no tag never matches an active source filter, rather
+    // than throwing or matching everything.
+    if (hasSourceFile && event.sourceFile !== filters.sourceFile) continue;
     if (hasSearch && !matchesSearch(event, needle)) continue;
     result.push(event);
   }
@@ -151,6 +167,22 @@ export function getUniqueProviders(events: readonly EvtxEvent[]): string[] {
 export function getUniqueComputers(events: readonly EvtxEvent[]): string[] {
   const set = new Set<string>();
   for (const event of events) set.add(event.computer || "Unknown");
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Unique source EVTX filenames across `events` (Phase 5.7), alphabetically
+ * sorted. Events with no `sourceFile` (shouldn't occur once a case has
+ * loaded through `evidenceStore.ts`, but this stays defensive like
+ * `getUniqueProviders`/`getUniqueComputers` above) are simply excluded
+ * rather than bucketed under a placeholder — an untagged event can't be
+ * filtered "by source" in any meaningful sense.
+ */
+export function getUniqueSourceFiles(events: readonly EvtxEvent[]): string[] {
+  const set = new Set<string>();
+  for (const event of events) {
+    if (event.sourceFile) set.add(event.sourceFile);
+  }
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 

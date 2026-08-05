@@ -19,6 +19,19 @@ export interface EvtxEvent {
   message: string;
   /** Raw XML/JSON payload for detail drill-down, opaque to the UI. */
   raw?: unknown;
+  /**
+   * Originating filename for this event (Phase 5.7 — Multi-EVTX
+   * Investigation). Optional, not required, because the protected parser
+   * core (`backend/engine/record-mapper.ts`, which constructs every
+   * `EvtxEvent` literal) must not be modified — it has no knowledge of
+   * which file it's parsing. Instead `evidenceStore.ts` tags every event
+   * with its source filename immediately after `parseEVTX` returns, as
+   * part of the multi-file merge step (see `lib/multiFile.ts`), so by the
+   * time an event reaches any UI component `sourceFile` is always present
+   * in practice — this field only reads as possibly-undefined here to keep
+   * that construction boundary honest at the type level.
+   */
+  sourceFile?: string;
 }
 
 export type SuspicionSeverity = "critical" | "warning" | "informational";
