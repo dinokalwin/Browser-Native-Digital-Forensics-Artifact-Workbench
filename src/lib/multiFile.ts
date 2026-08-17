@@ -102,7 +102,9 @@ export function mergeAndSortEvents(results: readonly ParsedFileResult[]): EvtxEv
  * multiple files it synthesizes one summary record rather than requiring
  * every existing single-file consumer to be rewritten for an array.
  */
-export function synthesizeUploadedFileMeta(files: readonly UploadedFileMeta[]): UploadedFileMeta | null {
+export function synthesizeUploadedFileMeta(
+  files: readonly UploadedFileMeta[],
+): UploadedFileMeta | null {
   if (files.length === 0) return null;
   if (files.length === 1) return files[0];
 
@@ -117,6 +119,105 @@ export function synthesizeUploadedFileMeta(files: readonly UploadedFileMeta[]): 
       : `${files.length} EVTX files merged`;
 
   return { name, sizeBytes, uploadedAt };
+}
+
+/**
+ * QA-01 — Duplicate EVTX File Protection. Cheap, browser-native identity
+ * for detecting an accidentally-reselected file within one upload batch:
+ * filename + size + `lastModified`, all read directly off the `File`
+ * object with no content access. Deliberately does NOT hash file
+ * contents — for the "same file selected twice" case this identity triple
+ * is already exactly what the OS/file picker itself would consider "the
+ * same file", and hashing every file (potentially hundreds of MB, per
+ * SDD §7's large-file target) on every upload would cost real time for a
+ * check that, in the common case, this cheaper identity already answers
+ * correctly. Two different files that happen to share only a name (e.g.
+ * two unrelated hosts' exports both called "Security.evtx") will not
+ * collide here, since their size and/or `lastModified` will essentially
+ * always differ.
+ */
+function fileIdentityKey(file: File): string {
+  return `${file.name}::${file.size}::${file.lastModified}`;
+}
+
+export interface DedupeFilesResult {
+  /** First occurrence of each distinct identity, in original order. */
+  uniqueFiles: File[];
+  /** Names of files skipped because an earlier file in the same batch
+   * already had an identical identity — in encounter order. May contain
+   * the same name more than once if the same file was selected 3+ times. */
+  duplicateFiles: string[];
+}
+
+/**
+ * Removes exact-identity repeats from one upload batch, keeping the FIRST
+ * occurrence of each identity. Never mutates `files`. This is the single
+ * place duplicate detection happens — `evidenceStore.ts#loadFiles` calls
+ * this before any file is handed to the parser, so a duplicate is never
+ * parsed and never merged as a second evidence source (see that module's
+ * own doc comment on this call).
+ */
+export function dedupeFiles(files: readonly File[]): DedupeFilesResult {
+  const seen = new Set<string>();
+  const uniqueFiles: File[] = [];
+  const duplicateFiles: string[] = [];
+
+  for (const file of files) {
+    const key = fileIdentityKey(file);
+    if (seen.has(key)) {
+      duplicateFiles.push(file.name);
+    } else {
+      seen.add(key);
+      uniqueFiles.push(file);
+    }
+  }
+
+  return { uniqueFiles, duplicateFiles };
+}
+
+/** Matches `record-mapper.ts#xmlToEvent`'s own fallback value for a record
+ * whose XML has no `<Computer>` element — treated as "no host information",
+ * never as a real, comparable host identity (see `checkHostConsistency`). */
+const UNKNOWN_HOST = "Unknown";
+
+export interface HostConsistencyResult {
+  /** True when every file's events agree on a host (or too little host
+   * information exists to say otherwise) — the common, expected case. */
+  isConsistent: boolean;
+  /** Every distinct *known* (non-"Unknown") host observed across all
+   * files, sorted. Length 0 or 1 whenever `isConsistent` is true. */
+  hosts: string[];
+}
+
+/**
+ * QA-02 — Same-Host Advisory. Cross-file host/computer consistency check,
+ * advisory only — this never blocks or alters a load, it only reports
+ * what it found so the caller (`evidenceStore.ts`) can surface a warning.
+ * Only meaningful across more than one file; call sites should skip this
+ * for a single-file load (see `evidenceStore.ts`).
+ *
+ * "Unknown" is deliberately excluded from the comparison: a file whose
+ * records carry no `<Computer>` element must never be treated as "a
+ * different host" than one that does — that would falsely warn on
+ * genuinely missing metadata rather than a real host mismatch, which is
+ * exactly the failure mode this function's callers are required to avoid.
+ * A file contributes nothing to `hosts` unless at least one of its events
+ * has real, known host information.
+ */
+export function checkHostConsistency(results: readonly ParsedFileResult[]): HostConsistencyResult {
+  if (results.length <= 1) return { isConsistent: true, hosts: [] };
+
+  const hostSet = new Set<string>();
+  for (const result of results) {
+    for (const event of result.events) {
+      if (event.computer && event.computer !== UNKNOWN_HOST) {
+        hostSet.add(event.computer);
+      }
+    }
+  }
+
+  const hosts = [...hostSet].sort();
+  return { isConsistent: hosts.length <= 1, hosts };
 }
 
 export interface PerFileStatistics {

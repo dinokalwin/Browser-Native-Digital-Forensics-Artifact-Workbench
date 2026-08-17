@@ -14,7 +14,7 @@ export function MobileSidebar() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="left" className="flex w-72 flex-col gap-6">
+      <SheetContent side="left" className="flex w-72 flex-col gap-6 print:hidden">
         <SheetHeader>
           {/* SheetTitle is visually hidden but keeps the drawer
               accessible to screen readers; Brand (a link) is rendered

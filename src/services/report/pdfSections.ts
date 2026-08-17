@@ -17,6 +17,7 @@ import type { EventLevel } from "@/types/evidence";
 
 import {
   APP_BRAND,
+  CONFIDENCE_COLOR,
   LEVEL_COLOR,
   REPORT_TITLE,
   RISK_COLOR,
@@ -561,25 +562,44 @@ export function renderSuspiciousEvents(doc: jsPDF, findings: ReportData["suspici
 
   const severityColorFor = (raw: string): [number, number, number] | undefined =>
     SEVERITY_COLOR[raw as keyof typeof SEVERITY_COLOR];
+  // Phase 5.13 — badge color keys off the confidence *level* even though the
+  // cell text shows level + numeric score together (e.g. "High · 72/100"),
+  // so the raw cell value below is parsed back to just the level word.
+  const confidenceColorFor = (raw: string): [number, number, number] | undefined =>
+    CONFIDENCE_COLOR[raw.split(" ")[0].toLowerCase() as keyof typeof CONFIDENCE_COLOR];
 
   dataTable(doc, {
     startY: y,
-    head: [["Finding", "Severity", "MITRE", "Related Event", "Description"]],
+    head: [["Finding", "Severity", "Confidence", "MITRE", "Related Event", "Description"]],
     body: findings.map((finding) => [
       finding.title,
       finding.severity,
+      // Phase 5.13 — Detection Engine 2.0. Older/synthetic findings without
+      // confidence data render "—" rather than a misleading default score,
+      // matching this report's existing "never invent a value" convention
+      // (see `mitreTechnique ?? "—"` immediately below).
+      finding.confidenceLevel && finding.riskScore !== null
+        ? `${finding.confidenceLevel[0].toUpperCase()}${finding.confidenceLevel.slice(1)} · ${finding.riskScore}/100`
+        : "—",
       finding.mitreTechnique ?? "—",
       finding.eventSummary,
       finding.description,
     ]),
     columnStyles: {
-      1: { halign: "center", cellWidth: 80 },
-      2: { halign: "center", cellWidth: 55 },
-      3: { cellWidth: 110 },
-      4: { cellWidth: 140 },
+      1: { halign: "center", cellWidth: 65 },
+      2: { halign: "center", cellWidth: 90 },
+      3: { halign: "center", cellWidth: 45 },
+      4: { cellWidth: 95 },
+      5: { cellWidth: 105 },
     },
-    didParseCell: (data: CellHookData) => blankCellText(data, 1),
-    didDrawCell: (data: CellHookData) => drawCellBadge(doc, data, 1, severityColorFor),
+    didParseCell: (data: CellHookData) => {
+      blankCellText(data, 1);
+      blankCellText(data, 2);
+    },
+    didDrawCell: (data: CellHookData) => {
+      drawCellBadge(doc, data, 1, severityColorFor);
+      drawCellBadge(doc, data, 2, confidenceColorFor);
+    },
   });
 }
 

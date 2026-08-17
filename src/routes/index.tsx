@@ -19,6 +19,30 @@ const TimelinePage = lazy(() => import("@/pages/TimelinePage"));
 // sub-route: recharts, the MITRE lib modules, and this page's own
 // components only ship once an investigator actually navigates here.
 const MitreAttackPage = lazy(() => import("@/pages/MitreAttackPage"));
+// Phase 5.10 — same lazy-route convention: the Case Library's own
+// components (and, unlike every route above, `evidenceStore` is NOT a
+// prerequisite to view this one) only ship once an analyst navigates here.
+const CasesPage = lazy(() => import("@/pages/CasesPage"));
+// Phase 5.11 — same lazy-route convention again: jsPDF/JSZip and the
+// Export Center's own components only ship once an analyst actually
+// navigates to /dashboard/export (JSZip itself is a second, inner lazy
+// import inside `lib/export/zip.ts`, fetched only on an actual ZIP
+// export click, not merely on visiting this page).
+const ExportPage = lazy(() => import("@/pages/ExportPage"));
+// Phase 5.12 — same lazy-route convention: `lib/search`'s index-building/
+// ranking code and this page's own components only ship once an analyst
+// navigates to /dashboard/search. The Ctrl/Cmd+K palette
+// (`GlobalSearch.tsx`/`SearchCommand.tsx`) is mounted from AppShell.tsx
+// instead, but is itself a separate `React.lazy` boundary that only fetches
+// once actually opened — see that file's own comment — so visiting this
+// page and opening the palette are two independent ways to reach the same
+// underlying `lib/search`/`searchStore.ts` code, neither one forcing the
+// other to load early.
+const SearchPage = lazy(() => import("@/pages/SearchPage"));
+// Phase 5 Item 2 — Configurable Rule Set. Same lazy-route convention: the
+// Settings page's own components only ship once an analyst navigates to
+// /dashboard/settings, exactly like every other /dashboard sub-route above.
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 
 /**
  * Route map:
@@ -27,6 +51,10 @@ const MitreAttackPage = lazy(() => import("@/pages/MitreAttackPage"));
  *   /dashboard/evidence -> AppShell > EvidenceViewerPage
  *   /dashboard/timeline -> AppShell > TimelinePage
  *   /dashboard/mitre    -> AppShell > MitreAttackPage (Sprint 5.9.1)
+ *   /dashboard/cases    -> AppShell > CasesPage (Phase 5.10)
+ *   /dashboard/export   -> AppShell > ExportPage (Phase 5.11)
+ *   /dashboard/search   -> AppShell > SearchPage (Phase 5.12)
+ *   /dashboard/settings -> AppShell > SettingsPage (Phase 5 Item 2)
  *   *                   -> NotFoundPage
  *
  * All case data lives in Zustand (not route params/loaders), so
@@ -46,6 +74,10 @@ export const router = createBrowserRouter([
       { path: "evidence", element: <EvidenceViewerPage /> },
       { path: "timeline", element: <TimelinePage /> },
       { path: "mitre", element: <MitreAttackPage /> },
+      { path: "cases", element: <CasesPage /> },
+      { path: "export", element: <ExportPage /> },
+      { path: "search", element: <SearchPage /> },
+      { path: "settings", element: <SettingsPage /> },
     ],
   },
   {

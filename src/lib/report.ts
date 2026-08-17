@@ -104,6 +104,14 @@ export interface ReportSuspiciousFinding {
   severity: SuspiciousFinding["severity"];
   mitreTechnique: string | null;
   eventSummary: string;
+  /** Phase 5.13 — Detection Engine 2.0. Populated when the underlying
+   * `SuspiciousFinding` carries confidence data (i.e. it originated from
+   * the context-aware detection engine, see `lib/detection/engine.ts#toSuspiciousFindings`).
+   * Null for any finding without it, so older/synthetic findings still
+   * render a valid (if confidence-less) report row rather than throwing. */
+  confidence: number | null;
+  confidenceLevel: SuspiciousFinding["confidenceLevel"] | null;
+  riskScore: number | null;
 }
 
 export interface ReportConclusion {
@@ -185,6 +193,9 @@ export function buildReportData(input: BuildReportDataInput): ReportData {
     severity: finding.severity,
     mitreTechnique: finding.mitreTechnique ?? null,
     eventSummary: eventLabel(eventById.get(finding.eventId), finding.eventId),
+    confidence: finding.confidence ?? null,
+    confidenceLevel: finding.confidenceLevel ?? null,
+    riskScore: finding.riskScore ?? null,
   }));
 
   const notesCount = eventNoteRows.length + (caseNote ? 1 : 0);

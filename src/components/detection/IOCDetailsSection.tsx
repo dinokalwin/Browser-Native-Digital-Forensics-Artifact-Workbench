@@ -1,9 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import { Crosshair, Shield } from "lucide-react";
+import { ChevronDown, Crosshair, Shield } from "lucide-react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
 import { getTechniqueInfo } from "@/lib/mitre/mapping";
 import { Badge } from "@/components/ui/badge";
+import { ConfidenceBadge } from "@/components/detection/ConfidenceBadge";
+import { FindingExplanationList } from "@/components/detection/FindingExplanationList";
 
 const SEVERITY_VARIANT = {
   critical: "critical",
@@ -56,6 +58,7 @@ export function IOCDetailsSection({ eventId }: IOCDetailsSectionProps) {
               <Badge variant={SEVERITY_VARIANT[finding.severity]} className="capitalize">
                 {finding.severity}
               </Badge>
+              {finding.confidenceLevel && <ConfidenceBadge level={finding.confidenceLevel} score={finding.riskScore} />}
               {finding.mitreTechnique && (
                 <Badge variant="outline" className="font-mono text-[10px]">
                   {finding.mitreTechnique}
@@ -71,6 +74,22 @@ export function IOCDetailsSection({ eventId }: IOCDetailsSectionProps) {
               <span className="font-medium">Recommendation: </span>
               {finding.recommendation}
             </p>
+            {/* Phase 5.13 — ticket section 18: "Add an expandable 'Why was
+                this detected?' section" rather than redesigning the
+                drawer. Native <details>/<summary> — keyboard-operable and
+                exposes its own expanded/collapsed state to assistive tech
+                with zero extra ARIA wiring, no new dependency. */}
+            {finding.evidenceSignals && finding.evidenceSignals.length > 0 && (
+              <details className="group mt-2 border-t border-border pt-2">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                  <ChevronDown className="h-3 w-3 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                  Why was this detected?
+                </summary>
+                <div className="mt-2">
+                  <FindingExplanationList finding={finding} />
+                </div>
+              </details>
+            )}
           </div>
         ))}
       </div>

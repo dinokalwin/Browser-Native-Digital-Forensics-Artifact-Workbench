@@ -11,7 +11,7 @@
  * rather than hardcoded hex values, so charts automatically match the
  * current light/dark theme instead of needing their own theme detection.
  */
-import type { DetectionFinding } from "@/lib/detection/types";
+import type { ConfidenceLevel, DetectionFinding } from "@/lib/detection/types";
 import type { EventLevel } from "@/types/evidence";
 
 /** Event severity levels — reuses this app's existing severity tokens so a
@@ -30,6 +30,17 @@ export const SEVERITY_COLOR: Record<DetectionFinding["severity"], string> = {
   critical: "hsl(var(--severity-critical))",
   warning: "hsl(var(--severity-warning))",
   informational: "hsl(var(--primary))",
+};
+
+/** Phase 5.13 — Detection Engine 2.0. Deliberately distinct from
+ * `SEVERITY_COLOR` above (confidence and severity are different axes — see
+ * `ConfidenceBadge.tsx`'s doc comment) so `ConfidenceDistributionChart`
+ * never visually reads as "just another severity chart". */
+export const CONFIDENCE_LEVEL_COLOR: Record<ConfidenceLevel, string> = {
+  low: "hsl(var(--muted-foreground))",
+  medium: "hsl(217 91% 60%)",
+  high: "hsl(var(--severity-warning))",
+  critical: "hsl(var(--severity-critical))",
 };
 
 /** Small qualitative palette for series with no existing semantic color

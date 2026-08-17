@@ -9,6 +9,8 @@ import { useFilterStore } from "@/store/filterStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ConfidenceBadge } from "@/components/detection/ConfidenceBadge";
+import { FindingExplanationList } from "@/components/detection/FindingExplanationList";
 
 const SEVERITY_VARIANT = {
   critical: "critical",
@@ -89,6 +91,15 @@ export function IOCFindingsPanel({ findings, events }: IOCFindingsPanelProps) {
                         <Badge variant={SEVERITY_VARIANT[finding.severity]} className="capitalize">
                           {finding.severity}
                         </Badge>
+                        {/* Phase 5.13 — Detection Engine 2.0. Optional: a
+                            finding whose enrichment somehow didn't run
+                            (shouldn't happen post-5.13, but this field is
+                            optional by design — see DetectionFinding's doc
+                            comment) just omits the badge rather than
+                            rendering "undefined". */}
+                        {finding.confidenceLevel && (
+                          <ConfidenceBadge level={finding.confidenceLevel} score={finding.riskScore} />
+                        )}
                         {finding.mitreTechnique && (
                           <Badge variant="outline" className="font-mono text-[10px]">
                             {finding.mitreTechnique}
@@ -114,6 +125,11 @@ export function IOCFindingsPanel({ findings, events }: IOCFindingsPanelProps) {
                         <span className="font-medium">Recommendation: </span>
                         {finding.recommendation}
                       </p>
+                      {finding.evidenceSignals && finding.evidenceSignals.length > 0 && (
+                        <div className="mt-2 border-t border-border pt-2">
+                          <FindingExplanationList finding={finding} compact />
+                        </div>
+                      )}
                     </button>
                   </li>
                 );

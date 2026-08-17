@@ -56,8 +56,20 @@ interface RiskScoreCardProps {
   mitreSummary?: RiskScoreMitreSummary;
 }
 
-function countBySeverity(findings: DetectionFinding[]): Record<DetectionFinding["severity"], number> {
-  const counts: Record<DetectionFinding["severity"], number> = { critical: 0, warning: 0, informational: 0 };
+/**
+ * Phase 5 Item 3 — Printable Case Summary reuses this exact aggregation
+ * (via the new `export`) for its own severity-breakdown section, rather
+ * than re-implementing the same critical/warning/informational tally a
+ * second time — see `components/report/CaseSummaryPrintView.tsx`.
+ */
+export function countBySeverity(
+  findings: DetectionFinding[],
+): Record<DetectionFinding["severity"], number> {
+  const counts: Record<DetectionFinding["severity"], number> = {
+    critical: 0,
+    warning: 0,
+    informational: 0,
+  };
   for (const finding of findings) counts[finding.severity] += 1;
   return counts;
 }

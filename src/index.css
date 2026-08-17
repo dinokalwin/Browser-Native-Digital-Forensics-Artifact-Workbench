@@ -99,8 +99,47 @@
   * {
     @apply border-border;
   }
+  /* Responsiveness pass — global horizontal-overflow backstop. Every
+     component-level overflow source already found during this audit was
+     fixed at its root cause (see DashboardPage.tsx's Threat Score/Summary
+     grid, and the pre-existing `min-w-0` chain in AppShell.tsx / the
+     shared `Table` primitive's own scoped `overflow-x-auto`). This rule
+     doesn't replace any of that — it's a shell-level safety net so a
+     future stray fixed-width element can never widen the whole page (and
+     produce a page-level horizontal scrollbar) instead of being clipped/
+     scrolled within its own container, which is what section 1 of this
+     pass ("prevent the entire application from creating horizontal
+     overflow") asks for at the global level specifically. */
+  html,
+  body {
+    @apply overflow-x-hidden;
+  }
   body {
     @apply bg-background text-foreground antialiased;
+  }
+}
+
+/*
+ * Phase 5 Item 3 — Printable Case Summary. Deliberately outside any
+ * `@layer` (so it always wins over the `@layer base` `body` rule above,
+ * without needing `!important`): forces a plain white page with black
+ * text regardless of which theme (`--background`/`--foreground`, possibly
+ * dark) was active on screen when `window.print()` was invoked.
+ * `CaseSummaryPrintView` itself already sets explicit gray/black text
+ * classes rather than the theme-variable `text-foreground`/`bg-background`
+ * tokens, so this is a defensive backstop, not the only thing making the
+ * printed page readable. `@page` margins give the printed summary
+ * reasonable whitespace instead of whatever the browser's own zero/
+ * default margin happens to be.
+ */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  body {
+    background: white;
+    color: black;
   }
 }
 

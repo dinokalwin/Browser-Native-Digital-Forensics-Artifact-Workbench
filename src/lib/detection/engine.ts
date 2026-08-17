@@ -13,6 +13,7 @@ import type { EvtxEvent, RiskScore, SuspiciousFinding } from "@/types/evidence";
 import { computeRiskScore } from "@/backend/risk-score";
 import { getAllRules } from "./registry";
 import type { DetectionContext, DetectionFinding } from "./types";
+import { enrichFindings } from "./context/contextScoring";
 
 function buildContext(events: EvtxEvent[]): DetectionContext {
   const byId = new Map<string, EvtxEvent>();
@@ -46,16 +47,46 @@ const SEVERITY_RANK: Record<DetectionFinding["severity"], number> = {
 };
 
 /**
- * Runs every registered rule once over a single shared `DetectionContext`
- * and returns all findings, most severe first. Pure and synchronous —
- * callers (evidenceStore.ts) decide whether/how to memoize across
- * re-renders; this function itself does no caching, since it's already
- * cheap (one context build + 14 rule passes over precomputed indices) and
- * is only ever invoked once per file load, not on every render.
+ * Runs every registered rule once over a single shared `DetectionContext`,
+ * then runs the Phase 5.13 context/confidence enrichment pass
+ * (`context/contextScoring.ts#enrichFindings`) over the raw results before
+ * returning — every consumer of `runDetectionEngine` (evidenceStore.ts,
+ * and transitively the Dashboard/MITRE page/PDF report/Export
+ * Center/Search index) gets confidence-aware findings automatically,
+ * with no changes needed on their end. Findings are sorted most severe
+ * first — unchanged from before this phase; `severity` itself is never
+ * touched by enrichment, only the new optional fields are added.
+ *
+ * Pure and synchronous — callers (evidenceStore.ts) decide whether/how to
+ * memoize across re-renders; this function itself does no caching, since
+ * it's already cheap (one context build + 14 rule passes over
+ * precomputed indices + one enrichment pass, all O(events) or bounded by
+ * finding count) and is only ever invoked once per file load, not on
+ * every render.
+ *
+ * `enabledRuleIds` (Phase 5 Item 2 — Configurable Rule Set) is optional
+ * and additive: every existing call site (every rule/context test in this
+ * project, plus every production caller until this phase) omits it and
+ * gets the exact previous behavior — all registered rules run. When
+ * provided, it's a pure filter applied to *which rules run at all*
+ * (`rule.run(ctx)` is simply never called for an excluded rule, so a
+ * disabled rule produces zero findings, not findings that get filtered
+ * out afterward) — nothing about context building, an individual rule's
+ * own logic, or the enrichment/scoring pass below is altered for the
+ * rules that DO run. An id in `enabledRuleIds` that doesn't match any
+ * registered rule is silently inert (no matching rule to enable), never
+ * an error.
  */
-export function runDetectionEngine(events: EvtxEvent[]): DetectionFinding[] {
+export function runDetectionEngine(
+  events: EvtxEvent[],
+  enabledRuleIds?: ReadonlySet<string>,
+): DetectionFinding[] {
   const ctx = buildContext(events);
-  const findings = getAllRules().flatMap((rule) => rule.run(ctx));
+  const activeRules = enabledRuleIds
+    ? getAllRules().filter((rule) => enabledRuleIds.has(rule.id))
+    : getAllRules();
+  const rawFindings = activeRules.flatMap((rule) => rule.run(ctx));
+  const findings = enrichFindings(rawFindings, ctx);
   return findings.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 }
 
@@ -73,6 +104,14 @@ export function toSuspiciousFindings(findings: DetectionFinding[]): SuspiciousFi
     description: f.description,
     severity: f.severity,
     mitreTechnique: f.mitreTechnique,
+    // Phase 5.13 — carried through so `backend/risk-score.ts#computeRiskScore`
+    // (the function that actually produces the Dashboard's Threat Score,
+    // via `backend/investigation-summary.ts`) can use confidence-weighted
+    // math instead of a naive severity sum, without needing its own copy
+    // of the richer `DetectionFinding` shape.
+    confidence: f.confidence,
+    confidenceLevel: f.confidenceLevel,
+    riskScore: f.riskScore,
   }));
 }
 

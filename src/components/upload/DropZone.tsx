@@ -112,9 +112,38 @@ export function DropZone() {
       // below, and the user should stay put to see it (and try again)
       // rather than land on a dashboard with nothing in it.
       const state = useEvidenceStore.getState();
+
+      // QA-01 — Duplicate EVTX File Protection. Reported regardless of the
+      // eventual parse outcome below: this describes what was *selected*,
+      // not whether parsing subsequently succeeded, so an analyst always
+      // learns a duplicate was skipped even on an otherwise-failed load.
+      if (state.duplicateFiles.length > 0) {
+        toast.warning(
+          state.duplicateFiles.length === 1
+            ? `"${state.duplicateFiles[0]}" was already selected and was skipped.`
+            : `${state.duplicateFiles.length.toLocaleString()} duplicate files were already selected and were skipped.`,
+          {
+            description:
+              state.duplicateFiles.length > 1 ? state.duplicateFiles.join(", ") : undefined,
+          },
+        );
+      }
+
+      // QA-02 — Same-Host Advisory. Advisory only, per `evidenceStore.ts`'s
+      // own doc comment on `multiHostWarning` — the case still loads
+      // normally; this just tells the analyst what was combined so a
+      // cross-host correlation isn't mistaken for a same-host one.
+      if (state.multiHostWarning) {
+        toast.warning("These evidence files contain different host names.", {
+          description: `Combining them may produce cross-host correlations. Continue only if this is intentional. Hosts: ${state.multiHostWarning.join(", ")}.`,
+        });
+      }
+
       if (state.status === "ready") {
         toast.success(
-          validFiles.length === 1 ? "EVTX file parsed successfully" : "EVTX files parsed successfully",
+          validFiles.length === 1
+            ? "EVTX file parsed successfully"
+            : "EVTX files parsed successfully",
           {
             description:
               validFiles.length === 1
@@ -123,14 +152,19 @@ export function DropZone() {
           },
         );
         if (state.failedFiles.length > 0) {
-          toast.warning(`${state.failedFiles.length.toLocaleString()} file(s) failed to parse and were skipped.`, {
-            description: state.failedFiles.join(", "),
-          });
+          toast.warning(
+            `${state.failedFiles.length.toLocaleString()} file(s) failed to parse and were skipped.`,
+            {
+              description: state.failedFiles.join(", "),
+            },
+          );
         }
         navigate("/dashboard");
       } else if (state.status === "error") {
         toast.error(
-          validFiles.length === 1 ? "Couldn't parse this file" : "Couldn't parse any of the selected files",
+          validFiles.length === 1
+            ? "Couldn't parse this file"
+            : "Couldn't parse any of the selected files",
           { description: state.error ?? undefined },
         );
       }
@@ -148,6 +182,29 @@ export function DropZone() {
 
   return (
     <div className="mx-auto w-full max-w-xl">
+      {/*
+        Hidden trigger, not a second interactive control: it's opened
+        programmatically via `inputRef.current?.click()` from the card's own
+        click/keydown handlers below, never focused/activated directly. Kept
+        as a SIBLING of the `role="button"` card rather than a descendant —
+        axe's nested-interactive rule flags any native interactive element
+        (button, input, etc.) nested inside an ARIA `role="button"`
+        container regardless of `tabIndex`/`aria-hidden`, since some
+        assistive-tech/browser combinations can still reach it. `.click()`
+        still works on an element that's merely visually hidden (`sr-only`)
+        and outside the tab order.
+      */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".evtx"
+        multiple
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+        onChange={(e) => void handleFiles(e.target.files)}
+      />
+
       <motion.div
         role="button"
         tabIndex={0}
@@ -170,15 +227,6 @@ export function DropZone() {
           isBusy && "pointer-events-none opacity-70",
         )}
       >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".evtx"
-          multiple
-          className="sr-only"
-          onChange={(e) => void handleFiles(e.target.files)}
-        />
-
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
           {isBusy ? (
             <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
@@ -196,8 +244,18 @@ export function DropZone() {
           </p>
         </div>
 
-        <Button type="button" disabled={isBusy} tabIndex={-1} aria-hidden="true">
-          {isBusy ? "Processing…" : "Select File"}
+        {/*
+          Purely decorative — the whole card is already the click/keyboard
+          target (see the outer `role="button"` above). Rendered as a `span`
+          via `asChild` rather than a real `<button>`: axe's nested-interactive
+          check flags a native interactive element inside an ARIA `role="button"`
+          container regardless of `aria-hidden`/`tabIndex={-1}`, since some
+          assistive-tech/browser combinations can still reach it. A `span`
+          keeps the identical visual styling with no focusable/interactive
+          semantics to conflict with the parent.
+        */}
+        <Button asChild aria-disabled={isBusy} aria-hidden="true">
+          <span>{isBusy ? "Processing…" : "Select File"}</span>
         </Button>
 
         <AnimatePresence>
@@ -245,7 +303,9 @@ export function DropZone() {
         )}
         {selectedFiles.length > 1 && !localError && (
           <SelectedFilesCard
-            key={selectedFiles.map((file) => `${file.name}-${file.lastModified}-${file.size}`).join("|")}
+            key={selectedFiles
+              .map((file) => `${file.name}-${file.lastModified}-${file.size}`)
+              .join("|")}
             files={selectedFiles}
             status={status}
             eventCount={status === "ready" ? eventCount : null}

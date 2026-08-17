@@ -1,6 +1,9 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { FolderOpen } from "lucide-react";
 
 import { useEvidenceStore } from "@/store/evidenceStore";
+import { useAutoSaveCaseOnReady, useCaseStore, useHydrateCaseStore } from "@/store/caseStore";
 import { calculateStatistics } from "@/lib/statistics";
 import {
   DEFAULT_FILTERS,
@@ -26,6 +29,8 @@ import { MultiFileSummaryCard } from "@/components/dashboard/MultiFileSummaryCar
 import { FilterToolbar } from "@/components/dashboard/FilterToolbar";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { RiskScoreCard } from "@/components/dashboard/RiskScoreCard";
+import { ThreatScoreBreakdownPanel } from "@/components/dashboard/ThreatScoreBreakdownPanel";
+import { computeThreatScoreBreakdown } from "@/lib/detection/context/contextScoring";
 import { IOCFindingsPanel } from "@/components/detection/IOCFindingsPanel";
 import { InvestigationSummaryPanel } from "@/components/dashboard/InvestigationSummaryPanel";
 import { EvidenceTable } from "@/components/evidence/EvidenceTable";
@@ -35,6 +40,10 @@ import { CaseNotesPanel } from "@/components/notes/CaseNotesPanel";
 import { BookmarkedEventsCard } from "@/components/dashboard/BookmarkedEventsCard";
 import { useBookmarkMap } from "@/store/bookmarksStore";
 import { GenerateReportButton } from "@/components/report/GenerateReportButton";
+import { PrintCaseSummaryButton } from "@/components/report/PrintCaseSummaryButton";
+import { CaseSummaryPrintView } from "@/components/report/CaseSummaryPrintView";
+import { RecentCases } from "@/components/cases/RecentCases";
+import { Button } from "@/components/ui/button";
 
 // Phase 5.6 — lazy-loaded the same way DashboardPage/EvidenceViewerPage/
 // TimelinePage already are at the route level (routes/index.tsx, not
@@ -61,6 +70,11 @@ export default function DashboardPage() {
   // directly) — this page just no longer needs it locally.
   const iocFindings = useEvidenceStore((s) => s.iocFindings);
   const investigationSummary = useEvidenceStore((s) => s.investigationSummary);
+  // Phase 5 Item 3 — Printable Case Summary. Read alongside the two
+  // selectors above (not inside GenerateReportButton's own read, which
+  // stays untouched) purely to hand off to `CaseSummaryPrintView` below;
+  // nothing about the PDF report's own data flow changes.
+  const uploadedFile = useEvidenceStore((s) => s.uploadedFile);
 
   // Sprint 5.9.4 — Platform-wide MITRE ATT&CK Integration. Reuses the exact
   // same `lib/mitre` aggregation/statistics functions the MITRE ATT&CK page
@@ -71,20 +85,41 @@ export default function DashboardPage() {
   // sprint's "Reuse existing aggregation. No duplicate calculations."
   // requirement.
   const mitreAggregation = useMemo(() => aggregateMitreFindings(iocFindings), [iocFindings]);
-  const mitreCoverageStats = useMemo(() => computeCoverageStats(mitreAggregation), [mitreAggregation]);
-  const mitreAdvancedStats = useMemo(() => computeAdvancedMitreStats(mitreAggregation), [mitreAggregation]);
+  const mitreCoverageStats = useMemo(
+    () => computeCoverageStats(mitreAggregation),
+    [mitreAggregation],
+  );
+  const mitreAdvancedStats = useMemo(
+    () => computeAdvancedMitreStats(mitreAggregation),
+    [mitreAggregation],
+  );
   const mitreSummary = useMemo(
     () => ({
       coveragePercent: mitreCoverageStats.coveragePercent,
       criticalTechniqueCount: countCriticalTechniques(mitreAggregation),
       topTactic: mitreAdvancedStats.highestRiskTactic,
       topTechnique: mitreAdvancedStats.highestRiskTechnique
-        ? { id: mitreAdvancedStats.highestRiskTechnique.id, name: mitreAdvancedStats.highestRiskTechnique.name }
+        ? {
+            id: mitreAdvancedStats.highestRiskTechnique.id,
+            name: mitreAdvancedStats.highestRiskTechnique.name,
+          }
         : null,
     }),
     [mitreCoverageStats, mitreAdvancedStats, mitreAggregation],
   );
-  const mitreSummarySentence = useMemo(() => buildMitreSummarySentence(mitreAggregation), [mitreAggregation]);
+  const mitreSummarySentence = useMemo(
+    () => buildMitreSummarySentence(mitreAggregation),
+    [mitreAggregation],
+  );
+  // Phase 5.13 — Detection Engine 2.0. Explanatory breakdown for the
+  // confidence-weighted Threat Score (`backend/risk-score.ts`'s new
+  // algorithm) — computed here (not inside the panel component) so the
+  // panel stays presentation-only, matching every other dashboard
+  // aggregation in this file.
+  const threatScoreBreakdown = useMemo(
+    () => computeThreatScoreBreakdown(iocFindings, investigationSummary?.riskScore.score ?? 0),
+    [iocFindings, investigationSummary],
+  );
   // Read directly from the store (same pattern as the two selectors above)
   // rather than from CaseStateGate's render-prop argument below, so the
   // memoized calculation is a top-level hook call in DashboardPage itself —
@@ -109,6 +144,19 @@ export default function DashboardPage() {
   // CaseNotesPanel/EventDetailsDrawer directly) so both stay presentation
   // components that just receive `caseId` as a prop.
   const caseId = useEvidenceStore((s) => s.uploadedFile?.name ?? null);
+
+  // Phase 5.10 — Case Management. `useAutoSaveCaseOnReady` is the
+  // Dashboard Integration requirement itself ("when an investigation
+  // finishes parsing, automatically save/update its metadata") — it reads
+  // `evidenceStore`/`notesStore`/`bookmarksStore` on its own and only
+  // writes when `status` transitions to `"ready"` (see its own doc
+  // comment in `store/caseStore.ts`), so nothing further is needed here
+  // beyond calling it. `useHydrateCaseStore` loads the saved case index
+  // once so `RecentCases` below has data to show even before any save
+  // happens this session.
+  useAutoSaveCaseOnReady();
+  useHydrateCaseStore();
+  const savedCases = useCaseStore((s) => s.cases);
 
   // Dashboard-wide investigation filters (search/provider/computer/eventId/
   // level — see lib/eventFilters.ts). Deliberately separate, component-local
@@ -170,6 +218,30 @@ export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState<EvtxEvent | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  // Phase 5.12 — Global Investigation Search. An Event/IOC/Note/Bookmark
+  // result (`navigate("/dashboard", { state: { focusEventId } })`, see
+  // `SearchCommand.tsx`'s `handleSelect`) arrives here as router state,
+  // the exact same convention `MitreAttackPage.tsx`'s `focusTechniqueId`
+  // already established for `/dashboard/mitre` — same render-time "adjust
+  // state" pattern (not a `useEffect`) so the very first render that sees
+  // a new `focusEventId` already has the drawer open, and the same
+  // `consumedFocusEventId` guard so re-rendering (e.g. after the analyst
+  // closes the drawer) never re-opens it. Looks the event up in
+  // `allEvents` (already loaded, no re-fetch) — an id that doesn't match
+  // any event (shouldn't happen, but the index could theoretically be
+  // stale for a moment) just does nothing rather than throwing.
+  const location = useLocation();
+  const focusEventId = (location.state as { focusEventId?: string } | null)?.focusEventId ?? null;
+  const [consumedFocusEventId, setConsumedFocusEventId] = useState<string | null>(null);
+  if (focusEventId && focusEventId !== consumedFocusEventId) {
+    setConsumedFocusEventId(focusEventId);
+    const target = allEvents.find((e) => e.id === focusEventId);
+    if (target) {
+      setSelectedEvent(target);
+      setIsDrawerOpen(true);
+    }
+  }
+
   // Stable references, so EvidenceTable (React.memo-wrapped) doesn't
   // re-render just because DashboardPage re-rendered for an unrelated
   // reason — only an actual prop change (new data/isLoading/onRowClick)
@@ -187,36 +259,53 @@ export default function DashboardPage() {
     >
       {(events) => (
         <>
-          {/* Sprint 5.1 — report generation is a case-wide action, so it
-              sits above every section rather than inside any one of them. */}
-          <div className="flex justify-end">
-            <GenerateReportButton />
-          </div>
+          {/* Phase 5 Item 3 — Printable Case Summary. Rendered permanently
+              (not conditionally mounted on click) so the browser's print
+              layout engine has real content the moment `window.print()`
+              fires — `hidden print:block` inside the component itself is
+              what keeps it invisible on screen. Sits outside the
+              `print:hidden` wrapper below, which is everything else. */}
+          {uploadedFile && (
+            <CaseSummaryPrintView
+              uploadedFile={uploadedFile}
+              statistics={statistics}
+              investigationSummary={investigationSummary}
+              iocFindings={iocFindings}
+            />
+          )}
 
-          {/* Phase 5.7 — Multi-EVTX Investigation. Only shown once more than
+          <div className="flex flex-col gap-6 print:hidden">
+            {/* Sprint 5.1 — report generation is a case-wide action, so it
+              sits above every section rather than inside any one of them. */}
+            <div className="flex justify-end gap-2">
+              <PrintCaseSummaryButton />
+              <GenerateReportButton />
+            </div>
+
+            {/* Phase 5.7 — Multi-EVTX Investigation. Only shown once more than
               one file contributed to this case; a single-file case already
               conveys this via StatisticsCards and the Navbar/CaseStateGate
               filename, so this section is pure redundancy there. */}
-          {uploadedFiles.length > 1 && (
+            {uploadedFiles.length > 1 && (
+              <div>
+                <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                  Evidence Sources
+                </h2>
+                <MultiFileSummaryCard
+                  fileCount={uploadedFiles.length}
+                  mergedEventCount={allEvents.length}
+                  earliestTimestamp={statistics.earliestTimestamp}
+                  latestTimestamp={statistics.latestTimestamp}
+                  perFile={perFileStatistics}
+                />
+              </div>
+            )}
+
             <div>
               <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                Evidence Sources
+                Investigation Statistics
               </h2>
-              <MultiFileSummaryCard
-                fileCount={uploadedFiles.length}
-                mergedEventCount={allEvents.length}
-                earliestTimestamp={statistics.earliestTimestamp}
-                latestTimestamp={statistics.latestTimestamp}
-                perFile={perFileStatistics}
-              />
-            </div>
-          )}
-
-          <div>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Investigation Statistics
-            </h2>
-            {/*
+              {/*
               Breakpoints deliberately skip `xl` (1280px) and jump straight
               from `lg` to `2xl` (1536px): at 1280-1440px ("large laptop"
               range, per this sprint's own 1366/1280 verification
@@ -225,56 +314,98 @@ export default function DashboardPage() {
               genuinely wide viewports (1536px+, covering the 1600/1920
               checkpoints) expand to a single row of 6.
             */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-              <StatisticsCards statistics={statistics} />
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                <StatisticsCards statistics={statistics} />
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-            <RiskScoreCard
-              riskScore={investigationSummary?.riskScore ?? { score: 0, level: "low" }}
-              iocFindings={iocFindings}
-              mitreSummary={mitreSummary}
-            />
-            <SummaryCards events={filteredEvents} />
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <IOCFindingsPanel findings={iocFindings} events={events} />
-            {investigationSummary && (
-              <InvestigationSummaryPanel
-                summary={investigationSummary}
-                mitreSummarySentence={iocFindings.length > 0 ? mitreSummarySentence : undefined}
-              />
+            {/* Phase 5.10 — Case Management. Only shown once at least one case
+              has ever been saved to the local Case Library; a brand-new
+              installation with no history yet shouldn't see an empty
+              "Recent Cases" card competing for attention with the
+              investigation actually on screen. */}
+            {savedCases.length > 0 && (
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                    Recent Cases
+                  </h2>
+                  <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs">
+                    <Link to="/dashboard/cases">
+                      <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                      View All Cases
+                    </Link>
+                  </Button>
+                </div>
+                <RecentCases cases={savedCases} activeCaseId={caseId} />
+              </div>
             )}
-          </div>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <CaseNotesPanel caseId={caseId} className="sm:col-span-2" />
-            <BookmarkedEventsCard caseId={caseId} onView={handleViewBookmarked} />
-          </div>
+            {/*
+            Responsiveness pass — this grid holds 5 cards (Threat Score +
+            4 SummaryCards), but RiskScoreCard is denser than a plain
+            StatCard (icon + gauge + severity breakdown + a 2-column MITRE
+            summary grid of its own). Jumping straight from 2 to 5 columns
+            at `lg` (1024px) squeezed every card to ~180px at 1366-1440px
+            viewports, cramming RiskScoreCard's inner grid unreadably. Fixed
+            by giving it the same staged `lg:3 / 2xl:5` breakpoints
+            StatisticsCards above already uses for its own denser 6-card
+            row — consistent with an established pattern in this file
+            rather than a new one-off value.
+          */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+              <RiskScoreCard
+                riskScore={investigationSummary?.riskScore ?? { score: 0, level: "low" }}
+                iocFindings={iocFindings}
+                mitreSummary={mitreSummary}
+              />
+              <SummaryCards events={filteredEvents} />
+            </div>
 
-          {/*
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <IOCFindingsPanel findings={iocFindings} events={events} />
+              {investigationSummary && (
+                <InvestigationSummaryPanel
+                  summary={investigationSummary}
+                  mitreSummarySentence={iocFindings.length > 0 ? mitreSummarySentence : undefined}
+                />
+              )}
+            </div>
+
+            {/* Phase 5.13 — Detection Engine 2.0, ticket section 16. Only
+              shown once the case actually has findings to explain — an
+              empty/clean case already says so via IOCFindingsPanel's own
+              empty state, so a breakdown panel here would be redundant. */}
+            {iocFindings.length > 0 && (
+              <ThreatScoreBreakdownPanel breakdown={threatScoreBreakdown} />
+            )}
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              <CaseNotesPanel caseId={caseId} className="sm:col-span-2" />
+              <BookmarkedEventsCard caseId={caseId} onView={handleViewBookmarked} />
+            </div>
+
+            {/*
             Phase 5.6 — Interactive Analytics Dashboard. Own Suspense
             boundary so the rest of the page (already rendered above) never
             waits on recharts' chunk; a lightweight skeleton fills the same
             grid shape while it loads so the section doesn't jump once the
             real charts mount.
           */}
-          <div>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Analytics
-            </h2>
-            <Suspense fallback={<AnalyticsPanelSkeleton />}>
-              <AnalyticsPanel
-                events={allEvents}
-                iocFindings={iocFindings}
-                onFilterRequest={handleAnalyticsFilterRequest}
-              />
-            </Suspense>
-          </div>
+            <div>
+              <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                Analytics
+              </h2>
+              <Suspense fallback={<AnalyticsPanelSkeleton />}>
+                <AnalyticsPanel
+                  events={allEvents}
+                  iocFindings={iocFindings}
+                  onFilterRequest={handleAnalyticsFilterRequest}
+                />
+              </Suspense>
+            </div>
 
-          {/*
+            {/*
             Sprint 3.4.1: the whole "All Events" workspace — heading,
             filters, results summary, export actions, and the table itself
             — now lives inside one Card instead of several visually
@@ -282,23 +413,23 @@ export default function DashboardPage() {
             standardized on gap-6 (Card content) / gap-4 (toolbar-to-table
             spacing), matching the rest of the dashboard.
           */}
-          <Card ref={allEventsCardRef}>
-            <CardContent className="flex flex-col gap-6 p-6">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                All Events
-              </h2>
+            <Card ref={allEventsCardRef}>
+              <CardContent className="flex flex-col gap-6 p-6">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                  All Events
+                </h2>
 
-              <FilterToolbar
-                filters={filters}
-                onFiltersChange={setFilters}
-                providers={providers}
-                computers={computers}
-                sourceFiles={sourceFiles}
-                bookmarkedOnly={bookmarkedOnly}
-                onBookmarkedOnlyChange={setBookmarkedOnly}
-              />
+                <FilterToolbar
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  providers={providers}
+                  computers={computers}
+                  sourceFiles={sourceFiles}
+                  bookmarkedOnly={bookmarkedOnly}
+                  onBookmarkedOnlyChange={setBookmarkedOnly}
+                />
 
-              {/*
+                {/*
                 Results summary + export actions share one compact row
                 (ticket's "Action Toolbar" moved next to the results count,
                 actions right-aligned) — matches this sprint's desired
@@ -308,24 +439,29 @@ export default function DashboardPage() {
                 `filteredEvents`, so the count/export always match what the
                 table below is actually showing.
               */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Showing {visibleEvents.length.toLocaleString()} of{" "}
-                  {allEvents.length.toLocaleString()} Events
-                </p>
-                <ExportControls events={visibleEvents} />
-              </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {visibleEvents.length.toLocaleString()} of{" "}
+                    {allEvents.length.toLocaleString()} Events
+                  </p>
+                  <ExportControls events={visibleEvents} />
+                </div>
 
-              <EvidenceTable data={visibleEvents} onRowClick={handleRowClick} showToolbar={false} />
-            </CardContent>
-          </Card>
+                <EvidenceTable
+                  data={visibleEvents}
+                  onRowClick={handleRowClick}
+                  showToolbar={false}
+                />
+              </CardContent>
+            </Card>
 
-          <EventDetailsDrawer
-            selectedEvent={selectedEvent}
-            open={isDrawerOpen}
-            onClose={handleDrawerClose}
-            caseId={caseId}
-          />
+            <EventDetailsDrawer
+              selectedEvent={selectedEvent}
+              open={isDrawerOpen}
+              onClose={handleDrawerClose}
+              caseId={caseId}
+            />
+          </div>
         </>
       )}
     </CaseStateGate>
@@ -342,10 +478,11 @@ function AnalyticsPanelSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
       {/* Sprint 5.9.4 — grew from 7 to 9 charts (Top ATT&CK Tactics/
-          Techniques added to AnalyticsPanel.tsx); this skeleton's count
-          follows so the loading placeholder still matches the real grid's
-          shape instead of visibly growing once the real charts mount. */}
-      {Array.from({ length: 9 }, (_, i) => (
+          Techniques added to AnalyticsPanel.tsx); Phase 5.13 grew to 10
+          (Detection Confidence) — this skeleton's count follows so the
+          loading placeholder still matches the real grid's shape instead
+          of visibly growing once the real charts mount. */}
+      {Array.from({ length: 10 }, (_, i) => (
         <Card key={i}>
           <CardContent className="flex h-72 flex-col gap-3 p-6">
             <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />

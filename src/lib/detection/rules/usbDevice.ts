@@ -9,7 +9,7 @@ import { makeFindingId } from "../types";
 import { eventsFor } from "../utils";
 
 const RULE_ID = "usb-device";
-const USB_PATTERN = /usbstor|usb\\vid_|removable storage/i;
+const USB_PATTERN = /usbstor|removable storage/i;
 
 function run(ctx: DetectionContext): DetectionFinding[] {
   const byCode = [...eventsFor(ctx, 20001), ...eventsFor(ctx, 2003), ...eventsFor(ctx, 2010)];

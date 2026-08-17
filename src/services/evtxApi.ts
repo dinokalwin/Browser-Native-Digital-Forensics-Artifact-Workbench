@@ -25,8 +25,11 @@ export const parseEVTX = (file: File) => backendParseEVTX(file);
 /** Phase 5.4 — the modular IOC Detection Engine's own, richer finding
  * shape. `evidenceStore.ts`'s pipeline calls this once and adapts its
  * result via `adaptToSuspiciousFindings` below rather than calling
- * `detectSuspicious` separately (which would re-run the same engine). */
-export const detectIOCs = (events: EvtxEvent[]) => backendDetectIOCs(events);
+ * `detectSuspicious` separately (which would re-run the same engine).
+ * `enabledRuleIds` (Phase 5 Item 2) is an optional pass-through — see
+ * `backend/index.ts#detectIOCs`. */
+export const detectIOCs = (events: EvtxEvent[], enabledRuleIds?: ReadonlySet<string>) =>
+  backendDetectIOCs(events, enabledRuleIds);
 
 export const adaptToSuspiciousFindings = (findings: DetectionFinding[]) =>
   backendAdaptToSuspiciousFindings(findings);

@@ -35,6 +35,16 @@ export interface MitreTechniqueSummary {
    * one representative recommendation per technique for the table/drawer,
    * rather than repeating every matched finding's own recommendation. */
   recommendation: string;
+  /** Phase 5.13 — Detection Engine 2.0, ticket section 19: "Technique !=
+   * automatically malicious" — mean `riskScore` across this technique's
+   * findings that have one, or `null` when none do (enrichment didn't run,
+   * or somehow every match lacks it). Lets the page show "this technique
+   * was observed, but at generally low confidence" instead of implying
+   * every occurrence is equally alarming. */
+  averageRiskScore: number | null;
+  /** The single finding (for this technique) with the highest `riskScore`
+   * — `null` under the same conditions as `averageRiskScore`. */
+  highestRiskFinding: DetectionFinding | null;
 }
 
 /** All techniques belonging to one tactic — every one of the 14 tactics

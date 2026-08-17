@@ -7,7 +7,7 @@
  * across render functions — see this sprint's "no duplicated layout code"
  * requirement.
  */
-import type { EventLevel, RiskLevel, SuspicionSeverity } from "@/types/evidence";
+import type { EventLevel, RiskLevel, SuspicionSeverity, SuspiciousFindingConfidenceLevel } from "@/types/evidence";
 
 export type RgbColor = [number, number, number];
 
@@ -52,6 +52,18 @@ export const RISK_LABEL: Record<RiskLevel, string> = {
 export const SEVERITY_COLOR: Record<SuspicionSeverity, RgbColor> = {
   informational: [37, 99, 235], // blue-600
   warning: [217, 119, 6], // amber-600
+  critical: [153, 27, 27], // red-800
+};
+
+/** Phase 5.13 — Detection Engine 2.0. Confidence badges in the Suspicious
+ * Events table — deliberately distinct from `SEVERITY_COLOR` (confidence and
+ * severity are different axes, see `ConfidenceBadge.tsx`'s doc comment) so a
+ * reader never mistakes a low-confidence/critical-severity row's confidence
+ * chip for a second severity indicator. */
+export const CONFIDENCE_COLOR: Record<SuspiciousFindingConfidenceLevel, RgbColor> = {
+  low: [107, 114, 128], // gray-500
+  medium: [37, 99, 235], // blue-600
+  high: [217, 119, 6], // amber-600
   critical: [153, 27, 27], // red-800
 };
 

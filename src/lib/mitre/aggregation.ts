@@ -64,11 +64,27 @@ export function aggregateMitreFindings(findings: readonly DetectionFinding[]): M
     let highestSeverity: DetectionFinding["severity"] | null = null;
     let recommendation = "";
 
+    // Phase 5.13 — riskScore aggregates, computed in this same pass rather
+    // than a second one: sum + count of findings that actually carry a
+    // `riskScore` (enrichment may not have run for a finding built outside
+    // the normal pipeline, so this never assumes every finding has one),
+    // plus a running "highest so far" comparison.
+    let riskScoreSum = 0;
+    let riskScoreCount = 0;
+    let highestRiskFinding: DetectionFinding | null = null;
+
     for (const finding of techniqueFindings) {
       severityCounts[finding.severity] += 1;
       if (!highestSeverity || SEVERITY_RANK[finding.severity] > SEVERITY_RANK[highestSeverity]) {
         highestSeverity = finding.severity;
         recommendation = finding.recommendation;
+      }
+      if (typeof finding.riskScore === "number") {
+        riskScoreSum += finding.riskScore;
+        riskScoreCount += 1;
+        if (!highestRiskFinding || finding.riskScore > (highestRiskFinding.riskScore ?? -1)) {
+          highestRiskFinding = finding;
+        }
       }
     }
 
@@ -82,6 +98,8 @@ export function aggregateMitreFindings(findings: readonly DetectionFinding[]): M
       severityCounts,
       highestSeverity,
       recommendation,
+      averageRiskScore: riskScoreCount > 0 ? Math.round(riskScoreSum / riskScoreCount) : null,
+      highestRiskFinding,
     };
   });
 

@@ -8,7 +8,14 @@ import type {
   LoadStatus,
 } from "@/types/evidence";
 import type { DetectionFinding } from "@/lib/detection/types";
-import { mergeAndSortEvents, synthesizeUploadedFileMeta, type ParsedFileResult } from "@/lib/multiFile";
+import {
+  checkHostConsistency,
+  dedupeFiles,
+  mergeAndSortEvents,
+  synthesizeUploadedFileMeta,
+  type ParsedFileResult,
+} from "@/lib/multiFile";
+import { getEnabledRuleIds } from "@/store/ruleConfigStore";
 
 /**
  * Source-of-truth store for everything that comes out of the backend
@@ -43,6 +50,24 @@ interface EvidenceState {
    * files, and this array lets the upload UI surface a warning about the
    * rest. Cleared at the start of every new `loadFiles` call. */
   failedFiles: string[];
+  /** QA-01 — Duplicate EVTX File Protection. Names of files skipped
+   * during the most recent `loadFiles` call because an earlier file in
+   * the same batch already had an identical identity (filename + size +
+   * `lastModified` — see `lib/multiFile.ts#dedupeFiles`). A duplicate is
+   * never parsed and never merged as a second evidence source; this array
+   * only exists so the upload UI can tell the analyst it happened.
+   * Cleared at the start of every new `loadFiles` call. */
+  duplicateFiles: string[];
+  /** QA-02 — Same-Host Advisory. Non-null only when more than one file
+   * was loaded AND their parsed events disagree on host (`computer`) —
+   * the distinct known host values observed, for the upload UI to warn
+   * with (see `lib/multiFile.ts#checkHostConsistency` for exactly what
+   * counts as "known" vs. missing). Advisory only: this never blocks or
+   * alters what gets loaded, it only reports what was found. Null for a
+   * single-file load, and null whenever every file agrees (or too little
+   * host information exists to say otherwise). Cleared at the start of
+   * every new `loadFiles` call. */
+  multiHostWarning: string[] | null;
   events: EvtxEvent[];
   suspiciousFindings: SuspiciousFinding[];
   investigationSummary: InvestigationSummary | null;
@@ -78,6 +103,8 @@ const initialState = {
   uploadedFile: null,
   uploadedFiles: [] as UploadedFileMeta[],
   failedFiles: [] as string[],
+  duplicateFiles: [] as string[],
+  multiHostWarning: null as string[] | null,
   events: [] as EvtxEvent[],
   suspiciousFindings: [] as SuspiciousFinding[],
   investigationSummary: null,
@@ -95,7 +122,18 @@ export const useEvidenceStore = create<EvidenceState>()(
       loadFiles: async (files: File[]) => {
         if (files.length === 0) return;
 
-        const fileMetas: UploadedFileMeta[] = files.map((file) => ({
+        // QA-01 — Duplicate EVTX File Protection. Runs before anything
+        // else in this pipeline: a duplicate identified here is never
+        // handed to `parseEVTX` and never appears in `parsedResults`
+        // below, so it cannot inflate event counts, double-count in
+        // statistics, or be a second source for a threshold-based
+        // detection rule to (mis)fire on. `duplicateFiles` is surfaced to
+        // the analyst by the upload UI (see `DropZone.tsx`) via the
+        // project's existing toast mechanism — this store never shows UI
+        // itself.
+        const { uniqueFiles, duplicateFiles } = dedupeFiles(files);
+
+        const fileMetas: UploadedFileMeta[] = uniqueFiles.map((file) => ({
           name: file.name,
           sizeBytes: file.size,
           uploadedAt: new Date().toISOString(),
@@ -108,6 +146,8 @@ export const useEvidenceStore = create<EvidenceState>()(
             status: "parsing",
             error: null,
             failedFiles: [],
+            duplicateFiles,
+            multiHostWarning: null,
           },
           false,
           "evidence/loadFiles:start",
@@ -130,7 +170,7 @@ export const useEvidenceStore = create<EvidenceState>()(
         // `pending` map keyed by request id), so these genuinely run
         // concurrently rather than needing to be awaited one at a time.
         const settled = await Promise.allSettled(
-          files.map(async (file, index): Promise<ParsedFileResult> => {
+          uniqueFiles.map(async (file, index): Promise<ParsedFileResult> => {
             const events = await parseEVTX(file);
             return { meta: fileMetas[index], events };
           }),
@@ -155,9 +195,9 @@ export const useEvidenceStore = create<EvidenceState>()(
             {
               status: "error",
               error:
-                files.length === 1
+                uniqueFiles.length === 1
                   ? "Failed to parse the uploaded file."
-                  : `Failed to parse all ${files.length} uploaded files.`,
+                  : `Failed to parse all ${uniqueFiles.length} uploaded files.`,
               failedFiles,
             },
             false,
@@ -174,6 +214,16 @@ export const useEvidenceStore = create<EvidenceState>()(
         const events = mergeAndSortEvents(parsedResults);
         const successfulMetas = parsedResults.map((result) => result.meta);
 
+        // QA-02 — Same-Host Advisory. Advisory only, per its own doc
+        // comment: computed from the successfully-parsed files' real
+        // `computer` values and stored for the upload UI to warn with
+        // (see `DropZone.tsx`) — nothing about `events`, correlation, or
+        // any downstream detection/scoring step is altered by this
+        // check. A single successfully-parsed file always reports
+        // consistent (see `checkHostConsistency`'s own guard), matching
+        // this project's "no warning for a single-file load" requirement.
+        const hostConsistency = checkHostConsistency(parsedResults);
+
         set(
           {
             events,
@@ -181,6 +231,7 @@ export const useEvidenceStore = create<EvidenceState>()(
             uploadedFile: synthesizeUploadedFileMeta(successfulMetas),
             status: "analyzing",
             failedFiles,
+            multiHostWarning: hostConsistency.isConsistent ? null : hostConsistency.hosts,
           },
           false,
           "evidence/loadFiles:parsed",
@@ -201,12 +252,23 @@ export const useEvidenceStore = create<EvidenceState>()(
         // generateInvestigationSummary expect) and `iocFindingsByEvent`
         // (the per-event lookup Timeline/Event Drawer use) are derived
         // from that single result rather than triggering a second pass.
+        //
+        // Phase 5 Item 2 — Configurable Rule Set. `getEnabledRuleIds()`
+        // reads the analyst's saved rule configuration (a global
+        // preference, `store/ruleConfigStore.ts`, not case data) and
+        // hydrates it from `localStorage` first if this is the first read
+        // this session — so a preference saved in an earlier session is
+        // honored even if the analyst uploads a file without visiting the
+        // Settings page first. If it's never been customized at all, the
+        // set contains every currently-registered rule id (the safe
+        // default), so this is a no-op filter and detection behaves
+        // exactly as it did before this phase.
         let iocFindings: DetectionFinding[] = [];
         let iocFindingsByEvent: Record<string, DetectionFinding[]> = {};
         let suspiciousFindings: SuspiciousFinding[] = [];
         let investigationSummary: InvestigationSummary | null = null;
         try {
-          iocFindings = detectIOCs(events);
+          iocFindings = detectIOCs(events, getEnabledRuleIds());
           iocFindingsByEvent = {};
           for (const finding of iocFindings) {
             const bucket = iocFindingsByEvent[finding.eventId];
@@ -220,7 +282,13 @@ export const useEvidenceStore = create<EvidenceState>()(
         }
 
         set(
-          { iocFindings, iocFindingsByEvent, suspiciousFindings, investigationSummary, status: "ready" },
+          {
+            iocFindings,
+            iocFindingsByEvent,
+            suspiciousFindings,
+            investigationSummary,
+            status: "ready",
+          },
           false,
           "evidence/loadFiles:ready",
         );

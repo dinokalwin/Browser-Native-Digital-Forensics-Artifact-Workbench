@@ -34,9 +34,17 @@ export const parseEVTX = parseEVTXImpl;
  * `suspiciousFindings` from its result via `toSuspiciousFindings` below,
  * rather than also calling `detectSuspicious` separately — that would run
  * the engine twice over the same events for no reason.
+ *
+ * `enabledRuleIds` (Phase 5 Item 2 — Configurable Rule Set) is a pure
+ * pass-through to `runDetectionEngine` — see that function's doc comment.
+ * Optional so this remains backward-compatible for any caller (including
+ * `detectSuspicious` below) that doesn't have a configuration to apply.
  */
-export function detectIOCs(events: EvtxEvent[]): DetectionFinding[] {
-  return runDetectionEngine(events);
+export function detectIOCs(
+  events: EvtxEvent[],
+  enabledRuleIds?: ReadonlySet<string>,
+): DetectionFinding[] {
+  return runDetectionEngine(events, enabledRuleIds);
 }
 
 /**

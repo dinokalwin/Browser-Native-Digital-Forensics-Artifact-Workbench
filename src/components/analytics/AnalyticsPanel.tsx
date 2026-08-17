@@ -14,6 +14,7 @@ import { EventIdChart } from "@/components/analytics/EventIdChart";
 import { ComputerChart } from "@/components/analytics/ComputerChart";
 import { EventTimelineChart } from "@/components/analytics/EventTimelineChart";
 import { ThreatDistributionChart } from "@/components/analytics/ThreatDistributionChart";
+import { ConfidenceDistributionChart } from "@/components/analytics/ConfidenceDistributionChart";
 import { MitreTacticChart } from "@/components/analytics/MitreTacticChart";
 import { MitreTopTacticsChart } from "@/components/analytics/MitreTopTacticsChart";
 import { MitreTopTechniquesChart } from "@/components/analytics/MitreTopTechniquesChart";
@@ -114,6 +115,7 @@ export function AnalyticsPanel({ events, iocFindings, onFilterRequest }: Analyti
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
       <EventLevelChart data={levelData} onSelectLevel={onFilterRequest ? handleSelectLevel : undefined} />
       <ThreatDistributionChart threats={threats} />
+      <ConfidenceDistributionChart findings={iocFindings} />
       <ProviderChart data={providerData} onSelectProvider={onFilterRequest ? handleSelectProvider : undefined} />
       <EventIdChart data={eventIdData} onSelectEventId={onFilterRequest ? handleSelectEventId : undefined} />
       <ComputerChart data={computerData} onSelectComputer={onFilterRequest ? handleSelectComputer : undefined} />

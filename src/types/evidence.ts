@@ -36,6 +36,14 @@ export interface EvtxEvent {
 
 export type SuspicionSeverity = "critical" | "warning" | "informational";
 
+/** Phase 5.13 — Detection Engine 2.0. Duplicated here (not imported from
+ * `lib/detection/context/contextScoring.ts#ConfidenceLevel`) rather than
+ * creating a dependency from this low-level shared-types module onto the
+ * detection feature — the same "small deliberate duplication over a
+ * cross-layer import" precedent `lib/search/types.ts`'s
+ * `SEARCH_SEVERITY_BADGE_VARIANT` already established in this project. */
+export type SuspiciousFindingConfidenceLevel = "low" | "medium" | "high" | "critical";
+
 export interface SuspiciousFinding {
   id: string;
   eventId: string; // FK -> EvtxEvent.id
@@ -43,6 +51,13 @@ export interface SuspiciousFinding {
   description: string;
   severity: SuspicionSeverity;
   mitreTechnique?: string;
+  /** Phase 5.13 — optional, populated when this finding was adapted from
+   * an enriched `DetectionFinding` (see `lib/detection/engine.ts#toSuspiciousFindings`).
+   * `backend/risk-score.ts#computeRiskScore` uses these, when present, for
+   * confidence-weighted case scoring instead of a flat per-severity sum. */
+  confidence?: number;
+  confidenceLevel?: SuspiciousFindingConfidenceLevel;
+  riskScore?: number;
 }
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";

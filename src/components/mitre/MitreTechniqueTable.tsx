@@ -136,13 +136,17 @@ export function MitreTechniqueTable({ techniques, onSelectTechnique }: MitreTech
             <TableHead className="w-28">
               <TableSortButton label="Severity" field="severity" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
             </TableHead>
+            {/* Phase 5.13 — ticket section 19: "Detection confidence /
+                Average risk" per technique, so a technique isn't read as
+                automatically malicious just because it was observed. */}
+            <TableHead className="hidden w-24 sm:table-cell">Avg Risk</TableHead>
             <TableHead className="hidden min-w-56 lg:table-cell">Recommendation</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sorted.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={7} className="h-32 text-center text-sm text-muted-foreground">
                 No techniques match the current filters.
               </TableCell>
             </TableRow>
@@ -180,6 +184,22 @@ export function MitreTechniqueTable({ techniques, onSelectTechnique }: MitreTech
                     <Badge variant={SEVERITY_VARIANT[technique.highestSeverity]} className="capitalize">
                       {technique.highestSeverity}
                     </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  {technique.averageRiskScore === null ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  ) : (
+                    <span
+                      className="font-mono text-xs tabular-nums text-muted-foreground"
+                      title={
+                        technique.highestRiskFinding
+                          ? `Highest-risk instance: ${technique.highestRiskFinding.riskScore}/100`
+                          : undefined
+                      }
+                    >
+                      {technique.averageRiskScore}/100
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">

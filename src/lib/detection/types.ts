@@ -6,6 +6,13 @@
  * out, safe to call from a component, a store, or a unit test.
  */
 import type { EvtxEvent, SuspicionSeverity } from "@/types/evidence";
+import type {
+  ConfidenceLevel,
+  DetectionContextSummary,
+  EvidenceSignal,
+} from "./context/contextScoring";
+
+export type { ConfidenceLevel, DetectionContextSummary, EvidenceSignal };
 
 /** Reuses the existing `SuspicionSeverity` union ("critical" | "warning" |
  * "informational") rather than inventing a parallel severity vocabulary —
@@ -33,6 +40,35 @@ export interface DetectionFinding {
   severity: DetectionSeverity;
   mitreTechnique?: string;
   recommendation: string;
+
+  /**
+   * Phase 5.13 — Detection Engine 2.0. Everything below is populated by
+   * `context/contextScoring.ts#enrichFindings` (the last step of
+   * `engine.ts#runDetectionEngine`), never by an individual rule — every
+   * field is optional specifically so this remains a purely additive
+   * extension: a finding constructed anywhere that doesn't run through
+   * enrichment (a unit test building a bare `DetectionFinding` literal,
+   * for instance) is still perfectly valid, it just has no context yet.
+   * See that module's doc comment for the full model.
+   */
+  /** 0-100 — confidence this finding represents a genuine threat, after
+   * weighing every contextual evidence signal on top of the rule's base
+   * severity. */
+  confidence?: number;
+  /** Bucketed `confidence` (see `contextScoring.ts#confidenceLevelFor`). */
+  confidenceLevel?: ConfidenceLevel;
+  /** Currently always equal to `confidence` — this project treats "how
+   * risky is this finding" and "how confident are we it's a genuine
+   * threat" as the same underlying 0-100 number (see
+   * `contextScoring.ts`'s module doc comment for the rationale). Kept as
+   * its own field because the ticket names it separately and because a
+   * future scoring revision may legitimately want to diverge the two. */
+  riskScore?: number;
+  /** Every signal (positive and negative) that contributed to `confidence`. */
+  evidenceSignals?: EvidenceSignal[];
+  /** Compact, display-ready summary of the context this finding was
+   * evaluated with. */
+  context?: DetectionContextSummary;
 }
 
 /**

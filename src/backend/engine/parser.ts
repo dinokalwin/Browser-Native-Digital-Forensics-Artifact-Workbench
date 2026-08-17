@@ -19,12 +19,31 @@
  */
 import { BinaryReader } from "@ts-evtx/core/dist/src/binary/BinaryReader.js";
 import { FileHeader } from "@ts-evtx/core/dist/src/evtx/FileHeader.js";
-import { InvalidRecordException } from "@ts-evtx/core/dist/src/evtx/Record.js";
 
 import type { EvtxEvent } from "@/types/evidence";
 import { xmlToEvent } from "./record-mapper";
 
 const MIN_FILE_SIZE = 4096; // EVTX file header size
+
+/**
+ * QA-03 — Bound Parser Error Logging. A dirty/adversarial forensic file can
+ * legitimately have thousands of unrecoverable records (see the
+ * "Resilience" doc comment on `parseEVTXBuffer` below) — logging one full
+ * `console.error` block per record floods devtools and can itself slow
+ * down parsing on such a file. Capped locally, per call to
+ * `parseEVTXBuffer`, rather than with a module-level counter like
+ * `record-mapper.ts`'s own `MAX_DEBUG_LOGS`/`debugLogCount`: a session-wide
+ * cap would silently go quiet for every file loaded *after* the first
+ * noisy one, which is worse for a per-file forensic artifact. A local
+ * counter is also deterministic and test-isolated — it can't leak state
+ * between test cases or between unrelated files in the same session.
+ *
+ * This bounds *diagnostic output only* — record recovery itself is
+ * unchanged: a record that fails verification/mapping is still skipped and
+ * parsing still continues over every remaining record and chunk exactly as
+ * before, whether or not this record's error happened to be logged.
+ */
+const MAX_LOGGED_RECORD_ERRORS = 3;
 
 export interface EngineParseProgress {
   chunksProcessed: number;
@@ -95,6 +114,8 @@ export async function parseEVTXBuffer(
   let recordsVerifiedOk = 0;
   let recordsMappedOk = 0;
   let recordsSinceYield = 0;
+  let recordErrorsLogged = 0; // QA-03 — see `MAX_LOGGED_RECORD_ERRORS` doc comment.
+  let recordErrorsSuppressed = 0;
 
   // includeInactive=true: a not-cleanly-closed file may have chunks the
   // writer had allocated but not marked fully active. For a forensics
@@ -152,19 +173,19 @@ export async function parseEVTXBuffer(
               }
             }
           } catch (err) {
-  console.error("====================================");
-  console.error("[EVTX PARSER ERROR]");
-  console.error(err);
-
-  if (err instanceof Error) {
-    console.error("Message:", err.message);
-    console.error("Stack:", err.stack);
-  }
-
-  console.error("====================================");
-
-  void (err instanceof InvalidRecordException);
-}
+            // QA-03 — bounded per-call diagnostic logging. The record is
+            // still skipped and iteration still continues either way; only
+            // how much gets printed to the console changes.
+            if (recordErrorsLogged < MAX_LOGGED_RECORD_ERRORS) {
+              recordErrorsLogged++;
+              console.error(
+                "[EVTX PARSER ERROR]",
+                err instanceof Error ? (err.stack ?? err.message) : err,
+              );
+            } else {
+              recordErrorsSuppressed++;
+            }
+          }
 
           recordsSinceYield++;
           if (recordsSinceYield >= yieldEvery) {
@@ -178,6 +199,12 @@ export async function parseEVTXBuffer(
 
     chunksProcessed++;
     options.onProgress?.({ chunksProcessed, totalChunks, eventsParsedSoFar: events.length });
+  }
+
+  // QA-03 — one summary line for everything past the first
+  // `MAX_LOGGED_RECORD_ERRORS` record errors, instead of logging each one.
+  if (recordErrorsSuppressed > 0) {
+    console.error(`[EVTX PARSER] Additional parser errors suppressed: ${recordErrorsSuppressed}`);
   }
 
   // `recordsAttempted === 0` while `chunksValid > 0` means every chunk's own
